@@ -374,7 +374,10 @@ class TranscriptionManager: ObservableObject {
                 let result = try await runPythonScript(name: "dictate-toggle.py")
                 print("Recording stopped: \(result)")
 
-                try await Task.sleep(nanoseconds: 2_000_000_000)
+                // Parse the transcription text from Python output
+                let transcriptionText = parseTranscriptionFromOutput(result)
+
+                // Reload transcriptions from Obsidian (for history)
                 loadTranscriptions()
 
                 // Record the new transcription in statistics
@@ -385,18 +388,47 @@ class TranscriptionManager: ObservableObject {
                 // Play transcription ready sound after processing completes
                 SoundManager.shared.playTranscriptionReady()
 
-                // Auto-paste if enabled
-                if AutoPasteManager.shared.isEnabled {
-                    // Get the transcribed text from the most recent transcription
-                    if let latestTranscription = transcriptions.first {
-                        await AutoPasteManager.shared.autoPaste(text: latestTranscription.text)
+                // Handle clipboard and auto-paste with the parsed transcription
+                if let text = transcriptionText, !text.isEmpty {
+                    print("TranscriptionManager: Transcription text ready, length: \(text.count)")
+                    print("TranscriptionManager: AutoPasteManager.shared.isEnabled = \(AutoPasteManager.shared.isEnabled)")
+                    print("TranscriptionManager: AutoPasteManager.shared.hasAccessibilityPermission = \(AutoPasteManager.shared.hasAccessibilityPermission)")
+
+                    // Always copy to clipboard as fallback
+                    AutoPasteManager.shared.copyToClipboardPublic(text: text)
+
+                    // Auto-paste if enabled
+                    if AutoPasteManager.shared.isEnabled {
+                        print("TranscriptionManager: Calling autoPaste()")
+                        await AutoPasteManager.shared.autoPaste(text: text)
+                        print("TranscriptionManager: autoPaste() completed")
+                    } else {
+                        print("TranscriptionManager: Auto-paste is disabled, skipping")
                     }
+                } else {
+                    print("TranscriptionManager: No transcription text, clearing focused element")
+                    // Clear focused element if no transcription
+                    AutoPasteManager.shared.clearFocusedElement()
                 }
             } catch {
                 lastError = "Failed to stop recording: \(error)"
                 AutoPasteManager.shared.clearFocusedElement()
             }
         }
+    }
+
+    /// Parse transcription text from Python script output
+    private func parseTranscriptionFromOutput(_ output: String) -> String? {
+        // Look for TRANSCRIPTION_START and TRANSCRIPTION_END markers
+        guard let startIndex = output.range(of: "TRANSCRIPTION_START")?.upperBound,
+              let endIndex = output.range(of: "TRANSCRIPTION_END")?.lowerBound else {
+            print("Could not find transcription markers in output")
+            return nil
+        }
+
+        let text = String(output[startIndex..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        print("Parsed transcription: \(text)")
+        return text.isEmpty ? nil : text
     }
 
     // MARK: - Python Script Execution

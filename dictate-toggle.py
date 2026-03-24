@@ -447,6 +447,10 @@ def stop_and_transcribe():
         log_file = STATE_DIR / "record.log"
         if log_file.exists():
             print("Recording log:", log_file.read_text())
+        # Output empty transcription marker for Swift to parse
+        print("TRANSCRIPTION_START")
+        print("")
+        print("TRANSCRIPTION_END")
         return
 
     # Check audio file size
@@ -484,13 +488,24 @@ def stop_and_transcribe():
         # Save to Obsidian vault (skips if blank)
         saved_path = save_transcription(text, MODEL_SIZE)
 
+        # Copy to clipboard
         pyperclip.copy(text)
+
+        # Output transcription in a parseable format for Swift
+        print("TRANSCRIPTION_START")
+        print(text)
+        print("TRANSCRIPTION_END")
+
         if saved_path:
             notify("✅ Dictation", f"Copied & saved: {text[:40]}{'...' if len(text) > 40 else ''}")
         else:
             notify("✅ Dictation", f"Copied: {text[:40]}{'...' if len(text) > 40 else ''}")
     else:
         notify("⚠️ Dictation", "No speech detected")
+        # Output empty transcription marker for Swift to parse
+        print("TRANSCRIPTION_START")
+        print("")
+        print("TRANSCRIPTION_END")
 
     # Cleanup
     AUDIO_FILE.unlink(missing_ok=True)

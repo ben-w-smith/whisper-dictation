@@ -175,25 +175,37 @@ class RefinementManager: ObservableObject {
             name: "OpenAI",
             baseURL: "https://api.openai.com/v1",
             defaultModel: "gpt-4o-mini",
-            popularModels: ["gpt-5-mini", "gpt-5-nano", "gpt-4o-mini", "gpt-4o", "o4-mini", "o3"]
+            popularModels: ["gpt-5-mini", "gpt-5-nano", "gpt-4o", "gpt-4o-mini", "o4-mini", "o3"]
+        ),
+        .anthropic: ProviderPreset(
+            name: "Anthropic (Claude)",
+            baseURL: "https://api.anthropic.com/v1",
+            defaultModel: "claude-3-5-haiku-latest",
+            popularModels: ["claude-3-7-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"]
+        ),
+        .googleGemini: ProviderPreset(
+            name: "Google Gemini",
+            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+            defaultModel: "gemini-2.0-flash-lite",
+            popularModels: ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
         ),
         .deepSeek: ProviderPreset(
             name: "DeepSeek",
             baseURL: "https://api.deepseek.com/v1",
             defaultModel: "deepseek-chat",
-            popularModels: ["deepseek-chat", "deepseek-reasoner"]
+            popularModels: ["deepseek-chat"]
         ),
         .moonshot: ProviderPreset(
             name: "Moonshot AI (Kimi)",
             baseURL: "https://api.moonshot.cn/v1",
-            defaultModel: "moonshot-v1-8k",
-            popularModels: ["kimi-k2-thinking", "Moonshot-Kimi-K2-Instruct", "moonshot-v1-8k", "moonshot-v1-32k"]
+            defaultModel: "kimi-k2-instruct",
+            popularModels: ["kimi-k2-instruct", "kimi-k2-thinking", "moonshot-v1-8k", "moonshot-v1-32k"]
         ),
         .zhipu: ProviderPreset(
             name: "Zhipu AI (GLM)",
             baseURL: "https://open.bigmodel.cn/api/paas/v4",
             defaultModel: "glm-4-flash",
-            popularModels: ["glm-4.6", "glm-4.5", "glm-4-plus", "glm-4-flash"]
+            popularModels: ["glm-4.7", "glm-4.6", "glm-4-plus", "glm-4-flash"]
         ),
         .qwen: ProviderPreset(
             name: "Qwen (Alibaba)",
@@ -205,13 +217,13 @@ class RefinementManager: ObservableObject {
             name: "Groq",
             baseURL: "https://api.groq.com/openai/v1",
             defaultModel: "llama-3.3-70b-versatile",
-            popularModels: ["llama-3.3-70b-versatile", "gpt-oss-120b", "gpt-oss-20b", "compound", "llama-4-scout"]
+            popularModels: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-4-scout-17b-16e-instruct", "compound"]
         ),
         .together: ProviderPreset(
             name: "Together AI",
             baseURL: "https://api.together.xyz/v1",
             defaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            popularModels: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"]
+            popularModels: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", "Qwen/Qwen3.5-397B-A17B"]
         ),
         .ollama: ProviderPreset(
             name: "Ollama (Local)",
@@ -224,18 +236,6 @@ class RefinementManager: ObservableObject {
             baseURL: "http://localhost:1234/v1",
             defaultModel: "local-model",
             popularModels: ["local-model"]
-        ),
-        .anthropic: ProviderPreset(
-            name: "Anthropic (Claude)",
-            baseURL: "https://api.anthropic.com/v1",
-            defaultModel: "claude-3-5-haiku-latest",
-            popularModels: ["claude-3-7-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
-        ),
-        .googleGemini: ProviderPreset(
-            name: "Google Gemini",
-            baseURL: "https://generativelanguage.googleapis.com/v1beta",
-            defaultModel: "gemini-2.0-flash-lite",
-            popularModels: ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
         )
     ]
 

@@ -90,22 +90,35 @@ class AutoPasteManager: ObservableObject {
 
     /// Call this when recording starts to capture the currently focused element
     func recordFocusedElement() {
-        guard isEnabled else { return }
+        print("AutoPaste: recordFocusedElement() called, isEnabled = \(isEnabled)")
 
-        // Save the currently focused application
+        // Always save the currently focused application, regardless of isEnabled
+        // This allows auto-paste to work if the user enables it during recording
         focusedAppAtRecordingStart = NSWorkspace.shared.frontmostApplication
+        print("AutoPaste: Recorded focused app: \(focusedAppAtRecordingStart?.localizedName ?? "nil")")
 
-        // Save the focused UI element
+        // Always save the focused UI element
         let systemWideElement = AXUIElementCreateSystemWide()
         var focusedElement: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+        print("AutoPaste: AXUIElementCopyAttributeValue result: \(result.rawValue)")
 
         if result == .success, let element = focusedElement {
             focusedElementAtRecordingStart = (element as! AXUIElement)
             print("AutoPaste: Recorded focused element at recording start")
+
+            // Debug: Get the role of the focused element
+            var roleValue: CFTypeRef?
+            let roleResult = AXUIElementCopyAttributeValue(focusedElementAtRecordingStart!, kAXRoleAttribute as CFString, &roleValue)
+            if roleResult == .success, let role = roleValue as? String {
+                print("AutoPaste: Focused element role: \(role)")
+            }
         } else {
             focusedElementAtRecordingStart = nil
-            print("AutoPaste: No focused element found at recording start")
+            print("AutoPaste: No focused element found at recording start - error code: \(result.rawValue)")
+            if result.rawValue == -25200 {
+                print("AutoPaste: kAXErrorAPIDisabled - Accessibility API is not enabled!")
+            }
         }
     }
 
@@ -120,10 +133,22 @@ class AutoPasteManager: ObservableObject {
     /// Attempt to paste text into the previously focused element
     /// - Parameter text: The text to paste
     func autoPaste(text: String) async {
-        guard isEnabled, !text.isEmpty else { return }
+        print("AutoPaste: autoPaste() called with text length: \(text.count)")
+        print("AutoPaste: isEnabled = \(isEnabled)")
+        print("AutoPaste: hasAccessibilityPermission = \(hasAccessibilityPermission)")
+        print("AutoPaste: focusedElementAtRecordingStart is nil: \(focusedElementAtRecordingStart == nil)")
+        print("AutoPaste: focusedAppAtRecordingStart is nil: \(focusedAppAtRecordingStart == nil)")
+
+        guard isEnabled, !text.isEmpty else {
+            print("AutoPaste: Early return - isEnabled: \(isEnabled), text.isEmpty: \(text.isEmpty)")
+            return
+        }
 
         // Check if user switched apps during recording
         let currentApp = NSWorkspace.shared.frontmostApplication
+        print("AutoPaste: Current app: \(currentApp?.localizedName ?? "nil")")
+        print("AutoPaste: Recorded app: \(focusedAppAtRecordingStart?.localizedName ?? "nil")")
+
         if let recordedApp = focusedAppAtRecordingStart,
            let currentApp = currentApp,
            recordedApp.processIdentifier != currentApp.processIdentifier {
@@ -153,6 +178,15 @@ class AutoPasteManager: ObservableObject {
 
         // Fallback: Simulate Cmd+V (text is now in clipboard)
         print("AutoPaste: Direct insertion failed, falling back to Cmd+V")
+
+        // Activate the target app before simulating paste
+        if let targetApp = focusedAppAtRecordingStart {
+            print("AutoPaste: Activating target app: \(targetApp.localizedName ?? "unknown")")
+            targetApp.activate(options: [])
+            // Small delay to let the app activate
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        }
+
         if await simulatePaste(text: text) {
             print("AutoPaste: Successfully simulated Cmd+V")
             showNotification(title: "Text pasted", message: "Transcription pasted from clipboard")
@@ -162,6 +196,11 @@ class AutoPasteManager: ObservableObject {
         }
 
         clearFocusedElement()
+    }
+
+    /// Copy text to the system clipboard (public for external use)
+    func copyToClipboardPublic(text: String) {
+        copyToClipboard(text: text)
     }
 
     /// Copy text to the system clipboard
@@ -175,6 +214,8 @@ class AutoPasteManager: ObservableObject {
     // MARK: - Direct Text Insertion via Accessibility API
 
     private func insertTextDirectly(element: AXUIElement, text: String) async -> Bool {
+        print("AutoPaste: insertTextDirectly() called")
+
         // Check if this is a secure input field (password field)
         if isSecureTextField(element) {
             print("AutoPaste: Skipping secure text field (password field)")
@@ -186,24 +227,30 @@ class AutoPasteManager: ObservableObject {
             print("AutoPaste: Element does not accept text input")
             return false
         }
+        print("AutoPaste: Element accepts text input")
 
         // Method 1: Try to insert at cursor position using kAXSelectedTextAttribute
         // This replaces the current selection (if any) with the text, or inserts at cursor
         let selectedTextResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
+        print("AutoPaste: kAXSelectedTextAttribute result: \(selectedTextResult.rawValue)")
         if selectedTextResult == .success {
             print("AutoPaste: Inserted text at cursor via kAXSelectedTextAttribute")
             return true
         }
 
         // Method 2: Get current value and selected range, then insert text at that position
+        print("AutoPaste: Method 1 failed, trying Method 2")
         var currentValue: CFTypeRef?
         let valueResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue)
+        print("AutoPaste: kAXValueAttribute result: \(valueResult.rawValue)")
 
         var rangeValue: CFTypeRef?
         let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
+        print("AutoPaste: kAXSelectedTextRangeAttribute result: \(rangeResult.rawValue)")
 
         if valueResult == .success, let existingText = currentValue as? String,
            rangeResult == .success, let range = rangeValue {
+            print("AutoPaste: Method 2 - got existing text and range")
             // Parse the AXValue to get the range (it's a CFRange wrapped in AXValue)
             var cfRange = CFRange()
             if AXValueGetValue(range as! AXValue, AXValueType(rawValue: kAXValueCFRangeType)!, &cfRange) {
@@ -214,6 +261,7 @@ class AutoPasteManager: ObservableObject {
                 let newText = prefix + text + suffix
 
                 let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newText as CFTypeRef)
+                print("AutoPaste: Method 2 - set value result: \(setResult.rawValue)")
                 if setResult == .success {
                     // Move cursor to end of inserted text
                     let newCursorPos = insertIndex + text.count
@@ -225,10 +273,13 @@ class AutoPasteManager: ObservableObject {
                     return true
                 }
             }
+        } else {
+            print("AutoPaste: Method 2 - failed to get value/range, valueResult: \(valueResult.rawValue), rangeResult: \(rangeResult.rawValue)")
         }
 
         // Method 3: For apps that don't support the above, try posting keyboard events
         // This types the text character by character at the cursor position
+        print("AutoPaste: Method 2 failed, trying Method 3 (keyboard events)")
         return await insertViaKeyboardEvents(element: element, text: text)
     }
 
@@ -297,6 +348,8 @@ class AutoPasteManager: ObservableObject {
     // MARK: - Cmd+V Simulation (Fallback)
 
     private func simulatePaste(text: String) async -> Bool {
+        print("AutoPaste: simulatePaste() called")
+
         // Ensure text is in clipboard before simulating paste
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -306,6 +359,7 @@ class AutoPasteManager: ObservableObject {
             print("AutoPaste: Failed to set clipboard content")
             return false
         }
+        print("AutoPaste: Clipboard set successfully")
 
         // Small delay to ensure clipboard is updated
         try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
@@ -316,10 +370,10 @@ class AutoPasteManager: ObservableObject {
         guard let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true) else {
             return false
         }
-        cmdDown.flags = .maskCommand
+        // Don't set command flag on the command key itself
         cmdDown.post(tap: .cgSessionEventTap)
 
-        // V down
+        // V down with command modifier
         guard let vDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true) else {
             // Release Cmd
             if let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false) {
@@ -330,7 +384,7 @@ class AutoPasteManager: ObservableObject {
         vDown.flags = .maskCommand
         vDown.post(tap: .cgSessionEventTap)
 
-        // V up
+        // V up with command modifier
         guard let vUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) else {
             return false
         }
@@ -343,6 +397,7 @@ class AutoPasteManager: ObservableObject {
         }
         cmdUp.post(tap: .cgSessionEventTap)
 
+        print("AutoPaste: Keyboard events posted successfully")
         return true
     }
 
