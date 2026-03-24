@@ -1,0 +1,72 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Swift / Xcode
+.build/
+build/
+DerivedData/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+xcuserdata/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+
+# App bundle (generated)
+*.app
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+*.wav
+*.log
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets - NEVER commit these
+.env
+.env.local
+*.pem
+*.key
+secrets.json
+
+# Obsidian (user-specific)
+.obsidian/
+
+# Package manager
+Package.resolved
