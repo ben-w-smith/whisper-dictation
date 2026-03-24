@@ -175,37 +175,37 @@ class RefinementManager: ObservableObject {
             name: "OpenAI",
             baseURL: "https://api.openai.com/v1",
             defaultModel: "gpt-4o-mini",
-            popularModels: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+            popularModels: ["gpt-5-mini", "gpt-5-nano", "gpt-4o-mini", "gpt-4o", "o4-mini", "o3"]
         ),
         .deepSeek: ProviderPreset(
             name: "DeepSeek",
             baseURL: "https://api.deepseek.com/v1",
             defaultModel: "deepseek-chat",
-            popularModels: ["deepseek-chat", "deepseek-coder"]
+            popularModels: ["deepseek-chat", "deepseek-reasoner"]
         ),
         .moonshot: ProviderPreset(
             name: "Moonshot AI (Kimi)",
             baseURL: "https://api.moonshot.cn/v1",
             defaultModel: "moonshot-v1-8k",
-            popularModels: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+            popularModels: ["kimi-k2-thinking", "Moonshot-Kimi-K2-Instruct", "moonshot-v1-8k", "moonshot-v1-32k"]
         ),
         .zhipu: ProviderPreset(
             name: "Zhipu AI (GLM)",
             baseURL: "https://open.bigmodel.cn/api/paas/v4",
             defaultModel: "glm-4-flash",
-            popularModels: ["glm-4-flash", "glm-4", "glm-4-plus", "glm-4-air"]
+            popularModels: ["glm-4.6", "glm-4.5", "glm-4-plus", "glm-4-flash"]
         ),
         .qwen: ProviderPreset(
             name: "Qwen (Alibaba)",
             baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            defaultModel: "qwen-turbo",
-            popularModels: ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-long"]
+            defaultModel: "qwen-plus",
+            popularModels: ["qwen3-max", "qwen-plus", "qwen-flash", "qwen-long"]
         ),
         .groq: ProviderPreset(
             name: "Groq",
             baseURL: "https://api.groq.com/openai/v1",
             defaultModel: "llama-3.3-70b-versatile",
-            popularModels: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+            popularModels: ["llama-3.3-70b-versatile", "gpt-oss-120b", "gpt-oss-20b", "compound", "llama-4-scout"]
         ),
         .together: ProviderPreset(
             name: "Together AI",
@@ -217,7 +217,7 @@ class RefinementManager: ObservableObject {
             name: "Ollama (Local)",
             baseURL: "http://localhost:11434/v1",
             defaultModel: "llama3.2",
-            popularModels: ["llama3.2", "llama3.1", "mistral", "qwen2.5", "gemma2"]
+            popularModels: ["llama3.3", "llama3.2", "deepseek-r1", "mistral", "qwen2.5"]
         ),
         .lmStudio: ProviderPreset(
             name: "LM Studio (Local)",
@@ -229,7 +229,7 @@ class RefinementManager: ObservableObject {
             name: "Anthropic (Claude)",
             baseURL: "https://api.anthropic.com/v1",
             defaultModel: "claude-3-5-haiku-latest",
-            popularModels: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
+            popularModels: ["claude-3-7-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
         ),
         .googleGemini: ProviderPreset(
             name: "Google Gemini",
