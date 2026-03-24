@@ -12,6 +12,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.0] - 2026-03-23
+
+### Added
+
+- **Auto-Paste**: Automatically paste transcriptions into the focused app
+  - Uses macOS Accessibility API for direct text insertion
+  - Falls back to Cmd+V if direct insertion fails
+  - Detects app switching during recording (skips paste)
+  - Skips password fields and secure input
+  - Configurable delay (0-2 seconds)
+  - Requires Accessibility permission
+
+- **Transcription Statistics**: Track your dictation usage
+  - Word counts (total, today, this week, this month)
+  - Streak tracking (current and longest)
+  - Session count and estimated WPM
+  - Most productive day
+  - Model usage breakdown
+  - Achievements (1K/10K words, 7/30 day streaks)
+  - Compact stats row in menu bar
+
+- **Sound Effects**: Audio feedback for recording states
+  - Start/stop recording sounds
+  - Transcription ready notification
+  - 13 system sounds to choose from
+  - Configurable in Settings > Sounds
+
+- **Mouse Button Shortcuts**: Toggle recording with mouse buttons
+  - Side buttons (Button 4/5) support
+  - Requires Accessibility permission
+  - Configurable in Settings > Shortcuts
+
+- **Microphone Selection**: Choose input device
+  - Lists all available microphones
+  - System default option
+  - Persisted across sessions
+
+- **AI Refinement Updates**: Updated all providers with March 2026 models
+  - OpenAI: GPT-5-mini, O4-mini, O3
+  - DeepSeek: Reasoner model
+  - Moonshot: Kimi K2 models
+  - Zhipu: GLM-4.6, GLM-4.5
+  - Qwen: Qwen3-Max
+  - Groq: Llama-4-Scout
+  - Anthropic: Claude 3.7 Sonnet
+  - Ollama: Llama 3.3, DeepSeek R1
+
+### Changed
+- Stats moved to Settings tab for easier navigation
+
+---
+
 ## [0.1.0] - 2026-03-23
 
 ### Added

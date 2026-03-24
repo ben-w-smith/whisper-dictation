@@ -24,6 +24,11 @@ class TranscriptionManager: ObservableObject {
         ObsidianManager.shared
     }
 
+    // Reference to StatisticsManager
+    private var statisticsManager: StatisticsManager {
+        StatisticsManager.shared
+    }
+
     // MARK: - Initialization
     init() {
         self.venvPython = "\(scriptsPath)/venv/bin/python"
@@ -286,6 +291,7 @@ class TranscriptionManager: ObservableObject {
               let transcriptionsPath = obsidianManager.transcriptionsPath else {
             print("Obsidian vault not configured - skipping transcription history load")
             transcriptions = []
+            statisticsManager.updateFromTranscriptions(transcriptions)
             return
         }
 
@@ -293,6 +299,7 @@ class TranscriptionManager: ObservableObject {
         guard FileManager.default.fileExists(atPath: transcriptionsPath) else {
             print("Obsidian transcriptions folder not found: \(transcriptionsPath)")
             transcriptions = []
+            statisticsManager.updateFromTranscriptions(transcriptions)
             return
         }
 
@@ -313,6 +320,9 @@ class TranscriptionManager: ObservableObject {
 
             transcriptions = markdownFiles.compactMap { Transcription.fromObsidianFile(url: $0) }
             print("Loaded \(transcriptions.count) transcriptions from Obsidian")
+
+            // Update statistics from loaded transcriptions
+            statisticsManager.updateFromTranscriptions(transcriptions)
         } catch {
             print("Error loading transcriptions: \(error)")
         }
@@ -332,6 +342,9 @@ class TranscriptionManager: ObservableObject {
         lastError = nil
         updateScriptModel()
 
+        // Record the focused element for auto-paste
+        AutoPasteManager.shared.recordFocusedElement()
+
         // Play start recording sound
         SoundManager.shared.playStartRecording()
 
@@ -342,6 +355,7 @@ class TranscriptionManager: ObservableObject {
             } catch {
                 lastError = "Failed to start recording: \(error)"
                 isRecording = false
+                AutoPasteManager.shared.clearFocusedElement()
             }
         }
     }
@@ -363,10 +377,24 @@ class TranscriptionManager: ObservableObject {
                 try await Task.sleep(nanoseconds: 2_000_000_000)
                 loadTranscriptions()
 
+                // Record the new transcription in statistics
+                if let latestTranscription = transcriptions.first {
+                    statisticsManager.recordTranscription(latestTranscription)
+                }
+
                 // Play transcription ready sound after processing completes
                 SoundManager.shared.playTranscriptionReady()
+
+                // Auto-paste if enabled
+                if AutoPasteManager.shared.isEnabled {
+                    // Get the transcribed text from the most recent transcription
+                    if let latestTranscription = transcriptions.first {
+                        await AutoPasteManager.shared.autoPaste(text: latestTranscription.text)
+                    }
+                }
             } catch {
                 lastError = "Failed to stop recording: \(error)"
+                AutoPasteManager.shared.clearFocusedElement()
             }
         }
     }

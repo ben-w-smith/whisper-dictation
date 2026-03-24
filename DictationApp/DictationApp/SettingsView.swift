@@ -19,6 +19,11 @@ struct SettingsView: View {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
 
+            StatsSettingsView()
+                .tabItem {
+                    Label("Stats", systemImage: "chart.bar")
+                }
+
             RefinementSettingsView()
                 .tabItem {
                     Label("Refinement", systemImage: "sparkles")
@@ -37,6 +42,7 @@ struct GeneralSettingsView: View {
     @EnvironmentObject var manager: TranscriptionManager
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @StateObject private var obsidianManager = ObsidianManager.shared
+    @StateObject private var autoPasteManager = AutoPasteManager.shared
 
     var body: some View {
         Form {
@@ -48,6 +54,49 @@ struct GeneralSettingsView: View {
                 }
                 .onChange(of: manager.selectedModel) { _, newValue in
                     manager.setSelectedModel(newValue)
+                }
+            }
+
+            Section("Auto-Paste") {
+                HStack {
+                    Text("Auto-paste after transcription")
+                    Spacer()
+                    Toggle("", isOn: $autoPasteManager.isEnabled)
+                        .toggleStyle(.switch)
+                }
+
+                if autoPasteManager.isEnabled {
+                    HStack {
+                        Text("Paste delay:")
+                        Slider(value: $autoPasteManager.pasteDelay, in: 0...2, step: 0.1)
+                            .frame(maxWidth: 150)
+                        Text("\(String(format: "%.1f", autoPasteManager.pasteDelay))s")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 35, alignment: .trailing)
+                    }
+
+                    if !AutoPasteManager.checkAccessibilityPermission() {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("Accessibility permission required for auto-paste")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button("Grant Permission") {
+                                AutoPasteManager.requestAccessibilityPermission()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    } else {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("Accessibility permission granted")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 

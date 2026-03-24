@@ -36,6 +36,10 @@ struct ContentView: View {
             .padding(.vertical, 8)
             .background(.ultraThickMaterial)
 
+            // Compact stats row
+            CompactStatsRow()
+                .background(.ultraThickMaterial)
+
             Divider()
 
             // Recording controls
@@ -138,7 +142,9 @@ struct ContentView: View {
                 Button("Settings") {
                     openSettingsAndBringToFront()
                 }
+
                 Spacer()
+
                 if manager.modelStatus == .ready {
                     Text("Ready to record")
                         .font(.caption)
