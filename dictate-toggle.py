@@ -17,9 +17,20 @@ import urllib.error
 from pathlib import Path
 from datetime import datetime
 
-# Add venv to path
+# Add venv to path (auto-detect Python version)
 VENV_PATH = Path(__file__).parent / "venv"
-sys.path.insert(0, str(VENV_PATH / "lib" / "python3.14" / "site-packages"))
+# Find the site-packages directory regardless of Python version
+site_packages = None
+lib_path = VENV_PATH / "lib"
+if lib_path.exists():
+    for p in lib_path.iterdir():
+        if p.name.startswith("python"):
+            candidate = p / "site-packages"
+            if candidate.exists():
+                site_packages = candidate
+                break
+if site_packages:
+    sys.path.insert(0, str(site_packages))
 
 import pyaudio
 import pyperclip
@@ -40,7 +51,7 @@ CHANNELS = 1
 
 # Audio input device - set to None for system default, or specify index
 # Device 3 is typically "USB microphone" on this system
-INPUT_DEVICE_INDEX = 3  # USB microphone"
+INPUT_DEVICE_INDEX = 1  # USB microphone"
 
 # Obsidian vault storage
 OBSIDIAN_VAULT = Path("/Users/bensmith/ObsidianVault/Default")
@@ -335,7 +346,7 @@ PID_FILE = STATE_DIR / "recording.pid"
 SAMPLE_RATE = {SAMPLE_RATE}
 CHUNK_SIZE = {CHUNK_SIZE}
 CHANNELS = {CHANNELS}
-INPUT_DEVICE_INDEX = 3  # USB microphone"
+INPUT_DEVICE_INDEX = 1  # USB microphone"
 
 def cleanup(sig=None, frame=None):
     PID_FILE.unlink(missing_ok=True)

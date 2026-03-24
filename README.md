@@ -2,6 +2,16 @@
 
 A native macOS menu bar app for voice dictation using local Whisper models. Fast, private, and works offline.
 
+## Quick Start
+
+```bash
+git clone https://github.com/yourusername/whisper-dictation.git
+cd whisper-dictation && ./setup.sh
+cd DictationApp && ./build-app.sh && cp -r build/Dictation.app /Applications/
+```
+
+Then open the app from /Applications, grant microphone permission when prompted, and you're ready to dictate!
+
 ## Features
 
 - **Native macOS menu bar app** - Always accessible, stays out of your way
@@ -18,15 +28,12 @@ A native macOS menu bar app for voice dictation using local Whisper models. Fast
 
 - macOS 14.0 or later
 - Python 3.10+ (for transcription backend)
+- [Homebrew](https://brew.sh) (for PortAudio installation)
 - Microphone access
 
 ## Installation
 
-### Download
-
-Download the latest release from the [Releases](releases) page.
-
-### Build from Source
+### Quick Start (Recommended)
 
 1. Clone the repository:
    ```bash
@@ -34,24 +41,55 @@ Download the latest release from the [Releases](releases) page.
    cd whisper-dictation
    ```
 
-2. Set up Python environment:
+2. Run the setup script (handles all dependencies including PortAudio):
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install faster-whisper pyaudio pyperclip
+   ./setup.sh
    ```
 
-3. Build the Swift app:
+3. Build and install the app:
    ```bash
    cd DictationApp
-   swift build -c release
-   ```
-
-4. Create app bundle:
-   ```bash
    ./build-app.sh
    cp -r build/Dictation.app /Applications/
    ```
+
+### Manual Installation
+
+If you prefer to install manually:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/whisper-dictation.git
+   cd whisper-dictation
+   ```
+
+2. **Install PortAudio** (required for audio recording):
+   ```bash
+   brew install portaudio
+   ```
+
+3. **Set up Python environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+
+   # For Apple Silicon Macs (M1/M2/M3):
+   export LDFLAGS="-L$(brew --prefix portaudio)/lib"
+   export CFLAGS="-I$(brew --prefix portaudio)/include"
+
+   pip install -r requirements.txt
+   ```
+
+4. **Build and install the Swift app:**
+   ```bash
+   cd DictationApp
+   ./build-app.sh
+   cp -r build/Dictation.app /Applications/
+   ```
+
+### Download Pre-built Release
+
+Download the latest release from the [Releases](releases) page. Note: You still need to set up the Python environment as described above.
 
 ## Usage
 
@@ -110,6 +148,24 @@ Supports 11+ AI providers for text refinement:
 - **API keys stored in Keychain** - Secure storage for sensitive data
 
 ## Troubleshooting
+
+### PyAudio/PortAudio installation fails
+
+PyAudio requires PortAudio to be installed via Homebrew:
+
+```bash
+# Install PortAudio
+brew install portaudio
+brew link portaudio
+
+# If linking fails, try:
+brew unlink portaudio && brew link portaudio
+
+# For Apple Silicon Macs, set compiler flags:
+export LDFLAGS="-L$(brew --prefix portaudio)/lib"
+export CFLAGS="-I$(brew --prefix portaudio)/include"
+pip install pyaudio
+```
 
 ### "No audio recorded" error
 

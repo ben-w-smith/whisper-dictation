@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct StatsSettingsView: View {
-    @StateObject private var statsManager = StatisticsManager.shared
+    @ObservedObject private var statsManager = StatisticsManager.shared
 
     var body: some View {
         Form {

@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract release notes from CHANGELOG
+        id: extract_notes
+        run: |
+          # Extract the release notes for this version
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          VERSION_NO_V=${VERSION#v}
+
+          # Extract content between version header and next version or ---
+          awk "/## \[${VERSION_NO_V}\]/{flag=1; next} /^## \[|^---/{if(flag) exit} flag" CHANGELOG.md > release_notes.md || true
+
+          # If no notes found, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release ${VERSION}" > release_notes.md
+          fi
+
+          echo "Release notes extracted:"
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

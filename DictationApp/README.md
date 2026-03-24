@@ -13,8 +13,25 @@ A native macOS menu bar app for speech-to-text dictation using faster-whisper.
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
-- Xcode 15.0+
-- Python virtual environment at `~/whisper-dictation/venv/`
+- Xcode 15.0+ or Xcode Command Line Tools
+- Python 3.10+ with virtual environment
+
+## Setup
+
+Before building, set up the Python environment:
+
+```bash
+cd /Users/bensmith/whisper-dictation
+./setup.sh
+```
+
+Or manually:
+```bash
+brew install portaudio
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ## Building & Running
 

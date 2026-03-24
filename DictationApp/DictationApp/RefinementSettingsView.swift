@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RefinementSettingsView: View {
-    @StateObject private var refinementManager = RefinementManager.shared
+    @ObservedObject private var refinementManager = RefinementManager.shared
     @State private var showAPIKeyField = false
     @State private var tempAPIKey = ""
     @State private var showingClearConfirmation = false

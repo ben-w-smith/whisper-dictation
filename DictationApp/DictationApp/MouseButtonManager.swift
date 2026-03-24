@@ -51,12 +51,14 @@ class MouseButtonManager: ObservableObject {
     }
 
     @Published var isRecordingMouseButton: Bool = false
+    @Published private(set) var hasAccessibilityPermission: Bool = false
 
     private weak var manager: TranscriptionManager?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isProcessingClick: Bool = false
     private var lastClickTime: Date?
+    private var permissionCheckTimer: Timer?
 
     private init() {
         self.isEnabled = UserDefaults.standard.bool(forKey: "mouseButtonEnabled")
@@ -66,8 +68,61 @@ class MouseButtonManager: ObservableObject {
             self.mouseButtonConfig = config
         }
 
+        // Initial permission check
+        self.hasAccessibilityPermission = Self.checkAccessibilityPermissionStatus()
+
+        // Start monitoring for permission changes
+        startPermissionMonitoring()
+
         if isEnabled {
             startMonitoring()
+        }
+    }
+
+    deinit {
+        permissionCheckTimer?.invalidate()
+    }
+
+    // MARK: - Permission Monitoring
+
+    private func startPermissionMonitoring() {
+        // Check permission status every 1 second when permission is not granted
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshPermissionStatus()
+            }
+        }
+    }
+
+    private func refreshPermissionStatus() {
+        let currentStatus = Self.checkAccessibilityPermissionStatus()
+        if currentStatus != hasAccessibilityPermission {
+            hasAccessibilityPermission = currentStatus
+            if currentStatus {
+                // Permission was just granted - try to start monitoring if enabled
+                if isEnabled && mouseButtonConfig != nil {
+                    startMonitoring()
+                }
+                // Switch to less frequent checks (every 30 seconds)
+                permissionCheckTimer?.invalidate()
+                permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+                    Task { @MainActor in
+                        self?.refreshPermissionStatus()
+                    }
+                }
+            } else {
+                // Permission was revoked - stop monitoring
+                stopMonitoring()
+            }
+        }
+    }
+
+    func requestPermissionWithMonitoring() {
+        // Request permission (shows system dialog if eligible)
+        Self.requestAccessibilityPermission()
+        // Force an immediate check after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.refreshPermissionStatus()
         }
     }
 
@@ -256,11 +311,21 @@ class MouseButtonManager: ObservableObject {
     }
 
     // MARK: - Permission Check
-    static func checkAccessibilityPermission() -> Bool {
+
+    /// Internal method to check the actual permission status from the system
+    private static func checkAccessibilityPermissionStatus() -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Check if accessibility permission is currently granted
+    /// - Returns: true if permission is granted, false otherwise
+    static func checkAccessibilityPermission() -> Bool {
+        return checkAccessibilityPermissionStatus()
+    }
+
+    /// Request accessibility permission from the user
+    /// This will show the system permission dialog if the app is eligible
     static func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)

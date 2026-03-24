@@ -41,8 +41,8 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @EnvironmentObject var manager: TranscriptionManager
     @AppStorage("launchAtLogin") private var launchAtLogin = false
-    @StateObject private var obsidianManager = ObsidianManager.shared
-    @StateObject private var autoPasteManager = AutoPasteManager.shared
+    @ObservedObject private var obsidianManager = ObsidianManager.shared
+    @ObservedObject private var autoPasteManager = AutoPasteManager.shared
 
     var body: some View {
         Form {
@@ -75,7 +75,7 @@ struct GeneralSettingsView: View {
                             .frame(width: 35, alignment: .trailing)
                     }
 
-                    if !AutoPasteManager.checkAccessibilityPermission() {
+                    if !autoPasteManager.hasAccessibilityPermission {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
@@ -84,7 +84,7 @@ struct GeneralSettingsView: View {
                                 .foregroundStyle(.secondary)
 
                             Button("Grant Permission") {
-                                AutoPasteManager.requestAccessibilityPermission()
+                                autoPasteManager.requestPermissionWithMonitoring()
                             }
                             .buttonStyle(.bordered)
                         }
@@ -226,7 +226,7 @@ struct GeneralSettingsView: View {
 
 struct HotkeySettingsView: View {
     @EnvironmentObject var manager: TranscriptionManager
-    @StateObject private var mouseButtonManager = MouseButtonManager.shared
+    @ObservedObject private var mouseButtonManager = MouseButtonManager.shared
     @FocusState private var isRecorderFocused: Bool
 
     var body: some View {
@@ -320,7 +320,7 @@ struct HotkeySettingsView: View {
                         Divider()
 
                         // Status and permission info
-                        if !MouseButtonManager.checkAccessibilityPermission() {
+                        if !mouseButtonManager.hasAccessibilityPermission {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.orange)
@@ -329,7 +329,7 @@ struct HotkeySettingsView: View {
                                     .foregroundStyle(.secondary)
 
                                 Button("Grant Permission") {
-                                    MouseButtonManager.requestAccessibilityPermission()
+                                    mouseButtonManager.requestPermissionWithMonitoring()
                                 }
                                 .buttonStyle(.bordered)
                             }
@@ -377,7 +377,7 @@ struct HotkeySettingsView: View {
 
 // MARK: - Mouse Button Recorder View (Alternative standalone component)
 struct MouseButtonRecorder: View {
-    @StateObject private var mouseButtonManager = MouseButtonManager.shared
+    @ObservedObject private var mouseButtonManager = MouseButtonManager.shared
     let onButtonRecorded: ((MouseButtonConfig) -> Void)?
 
     init(onButtonRecorded: ((MouseButtonConfig) -> Void)? = nil) {
@@ -413,7 +413,7 @@ struct MouseButtonRecorder: View {
 // MARK: - Sound Settings View
 
 struct SoundSettingsView: View {
-    @StateObject private var soundManager = SoundManager.shared
+    @ObservedObject private var soundManager = SoundManager.shared
 
     var body: some View {
         Form {

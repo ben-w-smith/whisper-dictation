@@ -21,6 +21,9 @@ class AutoPasteManager: ObservableObject {
         }
     }
 
+    @Published private(set) var hasAccessibilityPermission: Bool = false
+    private var permissionCheckTimer: Timer?
+
     // Track the app that was focused when recording started
     private var focusedAppAtRecordingStart: NSRunningApplication?
     private var focusedElementAtRecordingStart: AXUIElement?
@@ -32,6 +35,54 @@ class AutoPasteManager: ObservableObject {
             self.pasteDelay = 0.3
         } else {
             self.pasteDelay = UserDefaults.standard.double(forKey: "autoPasteDelay")
+        }
+
+        // Initial permission check
+        self.hasAccessibilityPermission = Self.checkAccessibilityPermissionStatus()
+
+        // Start monitoring for permission changes
+        startPermissionMonitoring()
+    }
+
+    deinit {
+        permissionCheckTimer?.invalidate()
+    }
+
+    // MARK: - Permission Monitoring
+
+    private func startPermissionMonitoring() {
+        // Check permission status every 1 second when permission is not granted
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshPermissionStatus()
+            }
+        }
+    }
+
+    private func refreshPermissionStatus() {
+        let currentStatus = Self.checkAccessibilityPermissionStatus()
+        if currentStatus != hasAccessibilityPermission {
+            hasAccessibilityPermission = currentStatus
+            if currentStatus {
+                // Permission was just granted - stop frequent polling
+                permissionCheckTimer?.invalidate()
+                permissionCheckTimer = nil
+                // Switch to less frequent checks (every 30 seconds) in case permission is revoked
+                permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+                    Task { @MainActor in
+                        self?.refreshPermissionStatus()
+                    }
+                }
+            }
+        }
+    }
+
+    func requestPermissionWithMonitoring() {
+        // Request permission (shows system dialog if eligible)
+        Self.requestAccessibilityPermission()
+        // Force an immediate check after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.refreshPermissionStatus()
         }
     }
 
@@ -82,12 +133,15 @@ class AutoPasteManager: ObservableObject {
             return
         }
 
+        // Always copy text to clipboard first as a fallback mechanism
+        copyToClipboard(text: text)
+
         // Apply configurable delay
         if pasteDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(pasteDelay * 1_000_000_000))
         }
 
-        // First, try direct Accessibility API insertion
+        // First, try direct Accessibility API insertion at cursor position
         if let element = focusedElementAtRecordingStart {
             if await insertTextDirectly(element: element, text: text) {
                 print("AutoPaste: Successfully inserted text via Accessibility API")
@@ -97,9 +151,9 @@ class AutoPasteManager: ObservableObject {
             }
         }
 
-        // Fallback: Simulate Cmd+V (clipboard should already contain the text)
+        // Fallback: Simulate Cmd+V (text is now in clipboard)
         print("AutoPaste: Direct insertion failed, falling back to Cmd+V")
-        if await simulatePaste() {
+        if await simulatePaste(text: text) {
             print("AutoPaste: Successfully simulated Cmd+V")
             showNotification(title: "Text pasted", message: "Transcription pasted from clipboard")
         } else {
@@ -108,6 +162,14 @@ class AutoPasteManager: ObservableObject {
         }
 
         clearFocusedElement()
+    }
+
+    /// Copy text to the system clipboard
+    private func copyToClipboard(text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        print("AutoPaste: Text copied to clipboard")
     }
 
     // MARK: - Direct Text Insertion via Accessibility API
@@ -125,29 +187,48 @@ class AutoPasteManager: ObservableObject {
             return false
         }
 
-        // Try to set the value directly
-        let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, text as CFTypeRef)
-
-        if result == .success {
+        // Method 1: Try to insert at cursor position using kAXSelectedTextAttribute
+        // This replaces the current selection (if any) with the text, or inserts at cursor
+        let selectedTextResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
+        if selectedTextResult == .success {
+            print("AutoPaste: Inserted text at cursor via kAXSelectedTextAttribute")
             return true
         }
 
-        // If setting value failed, try using AXTextInsertion
-        // First, get the selected text range or cursor position
+        // Method 2: Get current value and selected range, then insert text at that position
+        var currentValue: CFTypeRef?
+        let valueResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue)
+
         var rangeValue: CFTypeRef?
         let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
 
-        if rangeResult == .success, let _ = rangeValue {
-            // Try to insert text at the current selection
-            if AXUIElementPerformAction(element, kAXIncrementAction as CFString) == .success {
-                // Some apps support text insertion via actions
-            }
+        if valueResult == .success, let existingText = currentValue as? String,
+           rangeResult == .success, let range = rangeValue {
+            // Parse the AXValue to get the range (it's a CFRange wrapped in AXValue)
+            var cfRange = CFRange()
+            if AXValueGetValue(range as! AXValue, AXValueType(rawValue: kAXValueCFRangeType)!, &cfRange) {
+                // Insert text at cursor position (start of selection)
+                let insertIndex = cfRange.location
+                let prefix = String(existingText.prefix(insertIndex))
+                let suffix = String(existingText.dropFirst(insertIndex + cfRange.length))
+                let newText = prefix + text + suffix
 
-            // Alternative: Try using the pasteboard approach with the focused element
-            // This is more reliable for web views and some other apps
+                let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newText as CFTypeRef)
+                if setResult == .success {
+                    // Move cursor to end of inserted text
+                    let newCursorPos = insertIndex + text.count
+                    var newRange = CFRange(location: newCursorPos, length: 0)
+                    if let axValue = AXValueCreate(AXValueType(rawValue: kAXValueCFRangeType)!, &newRange) {
+                        _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, axValue)
+                    }
+                    print("AutoPaste: Inserted text at cursor position \(insertIndex)")
+                    return true
+                }
+            }
         }
 
-        // For apps that don't support direct value setting, try posting keyboard events
+        // Method 3: For apps that don't support the above, try posting keyboard events
+        // This types the text character by character at the cursor position
         return await insertViaKeyboardEvents(element: element, text: text)
     }
 
@@ -215,13 +296,19 @@ class AutoPasteManager: ObservableObject {
 
     // MARK: - Cmd+V Simulation (Fallback)
 
-    private func simulatePaste() async -> Bool {
-        // Make sure text is in clipboard
+    private func simulatePaste(text: String) async -> Bool {
+        // Ensure text is in clipboard before simulating paste
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        let success = pasteboard.setString(text, forType: .string)
 
-        // Get the current clipboard content from the transcription (it should already be there)
-        // Just simulate Cmd+V
+        guard success else {
+            print("AutoPaste: Failed to set clipboard content")
+            return false
+        }
+
+        // Small delay to ensure clipboard is updated
+        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
         let source = CGEventSource(stateID: .combinedSessionState)
 
@@ -328,11 +415,20 @@ class AutoPasteManager: ObservableObject {
 
     // MARK: - Permission Check
 
-    static func checkAccessibilityPermission() -> Bool {
+    /// Internal method to check the actual permission status from the system
+    private static func checkAccessibilityPermissionStatus() -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Check if accessibility permission is currently granted
+    /// - Returns: true if permission is granted, false otherwise
+    static func checkAccessibilityPermission() -> Bool {
+        return checkAccessibilityPermissionStatus()
+    }
+
+    /// Request accessibility permission from the user
+    /// This will show the system permission dialog if the app is eligible
     static func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)

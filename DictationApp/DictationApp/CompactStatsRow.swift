@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Compact Stats Row (for ContentView)
 
 struct CompactStatsRow: View {
-    @StateObject private var statsManager = StatisticsManager.shared
+    @ObservedObject private var statsManager = StatisticsManager.shared
 
     var body: some View {
         HStack(spacing: 12) {
