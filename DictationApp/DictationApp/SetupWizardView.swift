@@ -442,12 +442,29 @@ struct SetupWizardView: View {
 
     private var modelSelectionStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Choose a Whisper Model")
+            Text("Download a Whisper Model")
                 .font(.title)
                 .fontWeight(.semibold)
 
-            Text("Whisper models come in different sizes. Larger models are more accurate but slower. The model will be downloaded on first use.")
+            Text("Whisper models power the transcription. Larger models are more accurate but slower and take longer to download. We recommend starting with the base model.")
                 .font(.body)
+
+            // Download progress if downloading
+            if setupManager.isDownloadingModel {
+                VStack(spacing: 12) {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text(setupManager.downloadProgress)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(12)
+                }
+            }
 
             VStack(spacing: 12) {
                 ForEach(WhisperModel.allCases) { model in
@@ -455,7 +472,22 @@ struct SetupWizardView: View {
                 }
             }
 
-            Text("You can change the model later in Settings.")
+            // Download button
+            if !setupManager.isDownloadingModel {
+                Button(action: {
+                    setupManager.downloadSelectedModel()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.down.circle")
+                        Text("Download \(setupManager.selectedModel.displayName)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+
+            Text("The model will be downloaded to ~/.cache/huggingface/. You can change models later in Settings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

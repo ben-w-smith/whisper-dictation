@@ -145,6 +145,12 @@ struct ContentView: View {
                     openSettingsAndBringToFront()
                 }
 
+                Button("Setup Wizard") {
+                    openWindow(id: "setup-wizard")
+                }
+                .buttonStyle(.bordered)
+                .font(.caption)
+
                 Spacer()
 
                 if manager.modelStatus == .ready {

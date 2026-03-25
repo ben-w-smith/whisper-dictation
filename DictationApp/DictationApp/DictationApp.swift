@@ -24,7 +24,7 @@ struct DictationApp: App {
         .defaultSize(width: 450, height: 300)
         .commandsRemoved()
 
-        // Setup wizard window (hidden by default, shown programmatically)
+        // Setup wizard window (separate window to avoid popover issues)
         WindowGroup(id: "setup-wizard") {
             SetupWizardView()
                 .environmentObject(transcriptionManager)
