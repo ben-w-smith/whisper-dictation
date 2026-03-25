@@ -66,10 +66,10 @@ struct StatsSettingsView: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(String(format: "%.0f", statsManager.averageWpm))
+                        Text(statsManager.formattedWpm)
                             .font(.title2)
                             .fontWeight(.semibold)
-                        Text("Avg WPM (estimated)")
+                        Text(statsManager.wpmLabel)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
