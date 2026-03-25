@@ -66,6 +66,7 @@ REFINEMENT_ENABLED = os.environ.get("DICTATE_REFINEMENT_ENABLED", "false").lower
 REFINEMENT_BASE_URL = os.environ.get("DICTATE_REFINEMENT_BASE_URL", "")
 REFINEMENT_MODEL = os.environ.get("DICTATE_REFINEMENT_MODEL", "")
 REFINEMENT_API_KEY = os.environ.get("DICTATE_REFINEMENT_API_KEY", "")
+REFINEMENT_API_PATTERN = os.environ.get("DICTATE_REFINEMENT_API_PATTERN", "openai")
 REFINEMENT_PROMPT = os.environ.get("DICTATE_REFINEMENT_PROMPT", """Improve this speech-to-text transcription:
 - Fix grammar and punctuation
 - Remove filler words (um, uh, like, you know)
@@ -219,6 +220,140 @@ def refine_with_openai_compatible(text: str) -> str:
         return text
 
 
+def refine_with_anthropic(text: str) -> str:
+    """Use Anthropic API to refine transcription"""
+    if not REFINEMENT_API_KEY:
+        print("No API key configured for refinement")
+        return text
+
+    if not REFINEMENT_BASE_URL or not REFINEMENT_MODEL:
+        print("Base URL or model not configured for refinement")
+        return text
+
+    try:
+        # Prepare request
+        url = f"{REFINEMENT_BASE_URL.rstrip('/')}/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": REFINEMENT_API_KEY,
+            "anthropic-version": "2023-06-01"
+        }
+        data = {
+            "model": REFINEMENT_MODEL,
+            "max_tokens": 4096,
+            "system": REFINEMENT_PROMPT,
+            "messages": [
+                {"role": "user", "content": text}
+            ]
+        }
+
+        print(f"Anthropic refinement request to: {url}")
+        print(f"Model: {REFINEMENT_MODEL}")
+        print(f"Input text: {text[:100]}...")
+
+        # Make request
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+            if 'content' in result and len(result['content']) > 0:
+                refined_text = result['content'][0]['text'].strip()
+                print(f"Refined text: {refined_text[:100]}...")
+                return refined_text
+            else:
+                print(f"Unexpected response format: {result}")
+                return text
+
+    except urllib.error.HTTPError as e:
+        print(f"HTTP error during refinement: {e.code} {e.reason}")
+        error_body = e.read().decode('utf-8')
+        print(f"Error body: {error_body}")
+        return text
+    except urllib.error.URLError as e:
+        print(f"URL error during refinement: {e.reason}")
+        return text
+    except Exception as e:
+        print(f"Error during refinement: {e}")
+        import traceback
+        traceback.print_exc()
+        return text
+
+
+def refine_with_gemini(text: str) -> str:
+    """Use Gemini API to refine transcription"""
+    if not REFINEMENT_API_KEY:
+        print("No API key configured for refinement")
+        return text
+
+    if not REFINEMENT_BASE_URL or not REFINEMENT_MODEL:
+        print("Base URL or model not configured for refinement")
+        return text
+
+    try:
+        # Prepare request - model goes in URL path for Gemini
+        url = f"{REFINEMENT_BASE_URL.rstrip('/')}/models/{REFINEMENT_MODEL}:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": REFINEMENT_API_KEY
+        }
+        # Gemini combines system prompt and user text in the content
+        full_text = f"{REFINEMENT_PROMPT}\n\n{text}"
+        data = {
+            "contents": [
+                {"parts": [{"text": full_text}]}
+            ],
+            "generationConfig": {"maxOutputTokens": 4096}
+        }
+
+        print(f"Gemini refinement request to: {url}")
+        print(f"Model: {REFINEMENT_MODEL}")
+        print(f"Input text: {text[:100]}...")
+
+        # Make request
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+            if 'candidates' in result and len(result['candidates']) > 0:
+                candidate = result['candidates'][0]
+                if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+                    refined_text = candidate['content']['parts'][0]['text'].strip()
+                    print(f"Refined text: {refined_text[:100]}...")
+                    return refined_text
+                else:
+                    print(f"Unexpected candidate format: {candidate}")
+                    return text
+            else:
+                print(f"Unexpected response format: {result}")
+                return text
+
+    except urllib.error.HTTPError as e:
+        print(f"HTTP error during refinement: {e.code} {e.reason}")
+        error_body = e.read().decode('utf-8')
+        print(f"Error body: {error_body}")
+        return text
+    except urllib.error.URLError as e:
+        print(f"URL error during refinement: {e.reason}")
+        return text
+    except Exception as e:
+        print(f"Error during refinement: {e}")
+        import traceback
+        traceback.print_exc()
+        return text
+
+
 def refine_transcription(text: str) -> str:
     """Refine transcription using configured AI API"""
     if not REFINEMENT_ENABLED:
@@ -228,10 +363,16 @@ def refine_transcription(text: str) -> str:
     if not text or not text.strip():
         return text
 
-    print(f"Refining with: {REFINEMENT_BASE_URL}")
+    print(f"Refining with pattern: {REFINEMENT_API_PATTERN}")
+    print(f"Base URL: {REFINEMENT_BASE_URL}")
     print(f"Model: {REFINEMENT_MODEL}")
 
-    return refine_with_openai_compatible(text)
+    if REFINEMENT_API_PATTERN == "anthropic":
+        return refine_with_anthropic(text)
+    elif REFINEMENT_API_PATTERN == "gemini":
+        return refine_with_gemini(text)
+    else:
+        return refine_with_openai_compatible(text)
 
 
 def ensure_state_dir():

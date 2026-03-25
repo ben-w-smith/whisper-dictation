@@ -4,46 +4,40 @@ AI post-processing for transcriptions in DictationApp.
 
 ## Overview
 
-Refinement allows AI models to improve raw Whisper transcriptions by fixing grammar, punctuation, and removing filler words. Configure your own API endpoint and model.
+Refinement allows AI models to improve raw Whisper transcriptions by fixing grammar, punctuation, and removing filler words. Supports multiple API patterns for maximum compatibility.
+
+## API Patterns
+
+DictationApp supports three API patterns:
+
+| Pattern | Description | Providers |
+|---------|-------------|-----------|
+| **OpenAI-compatible** | Standard OpenAI chat completions format | OpenAI, DeepSeek, Moonshot, Groq, Qwen, OpenRouter, Ollama, LM Studio |
+| **Anthropic/Claude** | Anthropic Messages API format | Anthropic Claude |
+| **Google Gemini** | Google Generative AI format | Google Gemini |
 
 ## Configuration
-
-The refinement feature uses a generic OpenAI-compatible API format. Configure:
-
-- **Base URL**: Your API endpoint (e.g., `https://api.openai.com/v1`)
-- **Model**: The model name to use (e.g., `gpt-4o-mini`)
-- **API Key**: Stored securely in macOS Keychain
-
-### Popular API Endpoints
-
-| Provider | Base URL | Example Models |
-|----------|----------|----------------|
-| OpenAI | `https://api.openai.com/v1` | gpt-4o-mini, gpt-5-mini, o4-mini |
-| Anthropic | `https://api.anthropic.com/v1` | claude-3-5-haiku, claude-3-7-sonnet |
-| DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat |
-| Groq | `https://api.groq.com/openai/v1` | llama-3.3-70b-versatile |
-| Ollama (Local) | `http://localhost:11434/v1` | llama3.2, deepseek-r1 |
 
 ### Swift Layer
 
 ```swift
 @Published var isRefinementEnabled: Bool
+@Published var apiPattern: APIPattern  // .openAI, .anthropic, or .gemini
 @Published var baseURL: String
 @Published var model: String
 @Published var customPrompt: String
 ```
 
-### API Key Storage
+### UI Fields
 
-API keys are stored securely in macOS Keychain:
+- **API Pattern**: Dropdown selecting the API format
+- **Base URL**: API endpoint (pre-filled with pattern default, editable)
+- **Model**: Model name (free-form text)
+- **API Key**: Stored securely in macOS Keychain
 
-```swift
-private let keychainService = "com.whisper-dictation.refinement"
-private let keychainAccount = "api-key"
+### Popular Providers
 
-func saveAPIKey(_ key: String) -> Bool { ... }
-func getAPIKey() -> String? { ... }
-```
+The UI includes a collapsible "Popular Providers" section with pre-configured URLs. Click "Use" to auto-fill the base URL and a suggested model.
 
 ### Configuration Export
 
@@ -52,6 +46,7 @@ Swift exports configuration to Python via environment variables:
 ```swift
 func exportConfig() -> [String: String] {
     config["DICTATE_REFINEMENT_ENABLED"] = isRefinementEnabled ? "true" : "false"
+    config["DICTATE_REFINEMENT_API_PATTERN"] = apiPattern.rawValue  // "openai", "anthropic", or "gemini"
     config["DICTATE_REFINEMENT_BASE_URL"] = baseURL
     config["DICTATE_REFINEMENT_MODEL"] = model
     config["DICTATE_REFINEMENT_API_KEY"] = apiKey
@@ -74,19 +69,38 @@ Transcription:
 
 ## Python Integration
 
-The Python script checks for refinement configuration:
+The Python script routes to different handlers based on the API pattern:
 
 ```python
-import os
+REFINEMENT_API_PATTERN = os.environ.get("DICTATE_REFINEMENT_API_PATTERN", "openai")
 
-if os.environ.get("DICTATE_REFINEMENT_ENABLED") == "true":
-    base_url = os.environ.get("DICTATE_REFINEMENT_BASE_URL")
-    model = os.environ.get("DICTATE_REFINEMENT_MODEL")
-    api_key = os.environ.get("DICTATE_REFINEMENT_API_KEY")
-    prompt = os.environ.get("DICTATE_REFINEMENT_PROMPT")
-
-    text = refine_with_api(text, base_url, model, api_key, prompt)
+def refine_transcription(text: str) -> str:
+    if REFINEMENT_API_PATTERN == "anthropic":
+        return refine_with_anthropic(text)
+    elif REFINEMENT_API_PATTERN == "gemini":
+        return refine_with_gemini(text)
+    else:
+        return refine_with_openai_compatible(text)
 ```
+
+### Pattern-Specific Details
+
+#### OpenAI-compatible
+- Endpoint: `POST /chat/completions`
+- Auth: `Authorization: Bearer <api-key>`
+- Response: `choices[0].message.content`
+
+#### Anthropic/Claude
+- Endpoint: `POST /messages`
+- Auth: `x-api-key: <api-key>`, `anthropic-version: 2023-06-01`
+- Requires `max_tokens` parameter
+- Response: `content[0].text`
+
+#### Google Gemini
+- Endpoint: `POST /models/{model}:generateContent`
+- Auth: `x-goog-api-key: <api-key>`
+- Model name in URL path
+- Response: `candidates[0].content.parts[0].text`
 
 ## Error Handling
 
@@ -94,10 +108,33 @@ If refinement fails, the raw transcription is used:
 
 ```python
 try:
-    refined = refine_with_api(text)
+    refined = refine_transcription(text)
 except Exception as e:
     print(f"Refinement failed: {e}")
     refined = text  # Fall back to raw
+```
+
+## Updating Provider List
+
+Provider examples are stored in `DictationApp/Resources/providers.json`. To add or update providers:
+
+1. Edit `providers.json` with new provider info
+2. Submit a pull request
+
+The JSON structure:
+```json
+{
+  "providers": [
+    {
+      "name": "Provider Name",
+      "pattern": "openai",
+      "baseURL": "https://api.example.com/v1",
+      "models": ["model-1", "model-2"],
+      "docsURL": "https://docs.example.com",
+      "apiKeyURL": "https://example.com/keys"
+    }
+  ]
+}
 ```
 
 ## Development Notes
@@ -147,4 +184,4 @@ This ensures text input works reliably while keeping the singleton in sync.
 
 ---
 
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-25*
