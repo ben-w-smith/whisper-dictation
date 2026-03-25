@@ -5,13 +5,15 @@
 ## Quick Start
 
 ```bash
-# Python setup
+# Python setup (recommended - handles Apple Silicon PortAudio flags)
 cd /Users/bensmith/whisper-dictation
-python3 -m venv venv && source venv/bin/activate
-pip install faster-whisper pyaudio pyperclip google-generativeai openai
+./setup.sh
 
-# Build and run Swift app
-cd DictationApp && swift build -c release && .build/release/DictationApp
+# Build and run (development)
+cd DictationApp && swift run
+
+# Build app bundle for distribution
+cd DictationApp && ./build-app.sh && open build/
 ```
 
 ## Architecture
@@ -40,12 +42,27 @@ Swift menu bar app + Python transcription scripts. Swift calls Python via `Proce
 4. Python saves to Obsidian vault
 5. Swift reads vault for history display
 
+## Permissions Required
+
+- **Microphone**: Required for audio recording (macOS will prompt on first use)
+- **Accessibility**: Required for auto-paste feature (System Preferences > Privacy & Security > Accessibility)
+
 ## Configuration
 
 - **Swift settings**: UserDefaults (model, device, vault path)
 - **Python settings**: Modified directly in scripts by Swift
 - **API keys**: Stored in macOS Keychain
 - **Environment variables**: Passed to Python for refinement config
+
+## Debug
+
+```bash
+# View Python script logs
+tail -f /tmp/whisper-dictation/record.log
+
+# Run Swift app with console output
+cd DictationApp && swift run
+```
 
 ## Documentation
 
