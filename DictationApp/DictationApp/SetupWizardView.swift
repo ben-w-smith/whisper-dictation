@@ -4,6 +4,7 @@ struct SetupWizardView: View {
     @StateObject private var setupManager = SetupManager.shared
     @ObservedObject private var obsidianManager = ObsidianManager.shared
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dismissWindow) var dismissWindow
 
     var body: some View {
         VStack(spacing: 0) {

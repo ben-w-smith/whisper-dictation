@@ -26,7 +26,7 @@ from faster_whisper import WhisperModel
 
 # Load the model (this caches it for faster subsequent loads)
 print("Loading Whisper model...")
-model = WhisperModel("tiny.en", device="auto", compute_type="int8")
+model = WhisperModel("base.en", device="auto", compute_type="int8")
 print("Model loaded successfully!")
 
 # Do a quick dummy transcription to fully initialize

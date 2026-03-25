@@ -23,6 +23,46 @@ Thank you for your interest in contributing to DictationApp! This document provi
 
 ## Development Workflow
 
+### Beta Builds
+
+For testing with a separate app identity (separate permissions, settings, etc.):
+
+```bash
+cd DictationApp
+./build-beta.sh
+```
+
+This creates "Dictation Beta.app" with bundle ID `com.bensmith.DictationBeta`. It can run alongside the main app without conflicts.
+
+Useful for:
+- Testing new features before release
+- Testing permission flows without affecting your main app
+- A/B testing configurations
+
+### Updating AI Providers
+
+The AI refinement feature uses `DictationApp/DictationApp/Resources/providers.json` for provider configurations.
+
+To add or update a provider:
+
+1. Edit `providers.json`:
+   ```json
+   {
+     "name": "New Provider",
+     "pattern": "openai",  // or "anthropic" or "gemini"
+     "baseURL": "https://api.newprovider.com/v1",
+     "models": ["model-1", "model-2"],
+     "docsURL": "https://docs.newprovider.com",
+     "apiKeyURL": "https://newprovider.com/keys"
+   }
+   ```
+
+2. Test the app to verify the provider appears in the UI
+
+3. Submit a PR with your changes
+
+No code changes needed - the UI loads providers dynamically from the JSON file.
+
 ### Making Changes
 
 1. Create a feature branch:

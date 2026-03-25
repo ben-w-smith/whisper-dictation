@@ -14,6 +14,9 @@ cd DictationApp && swift run
 
 # Build app bundle for distribution
 cd DictationApp && ./build-app.sh && open build/
+
+# Build beta version (separate identity for testing)
+cd DictationApp && ./build-beta.sh && open build/
 ```
 
 ## Architecture
