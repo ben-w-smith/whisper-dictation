@@ -23,9 +23,8 @@ Environment variables and settings for DictationApp.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `refinementEnabled` | Bool | `false` | Enable AI refinement |
-| `refinementProvider` | String | `openai` | AI provider |
-| `refinementBaseURL` | String | Provider default | API base URL |
-| `refinementModel` | String | Provider default | Model name |
+| `refinementBaseURL` | String | - | API base URL |
+| `refinementModel` | String | - | Model name |
 | `refinementCustomPrompt` | String | Default prompt | Custom refinement prompt |
 
 ### Statistics Settings
@@ -43,12 +42,10 @@ These are passed from Swift to Python scripts:
 | Variable | Description |
 |----------|-------------|
 | `DICTATE_REFINEMENT_ENABLED` | `"true"` or `"false"` |
-| `DICTATE_REFINEMENT_PROVIDER` | Provider ID (e.g., `openai`, `anthropic`) |
 | `DICTATE_REFINEMENT_BASE_URL` | API endpoint URL |
 | `DICTATE_REFINEMENT_MODEL` | Model identifier |
 | `DICTATE_REFINEMENT_API_KEY` | API key (from Keychain) |
 | `DICTATE_REFINEMENT_PROMPT` | Custom prompt text |
-| `DICTATE_REFINEMENT_IS_OPENAI_COMPATIBLE` | `"true"` or `"false"` |
 
 ## Python Script Constants
 
@@ -63,9 +60,6 @@ INPUT_DEVICE_INDEX = None  # None for system default
 
 # Storage configuration
 OBSIDIAN_VAULT = Path("/Users/bensmith/ObsidianVault/Default")
-
-# Refinement (legacy, now uses env vars)
-USE_GEMINI = False
 ```
 
 ## Keychain Storage
@@ -83,11 +77,9 @@ Swift exports refinement config to Python:
 func exportConfig() -> [String: String] {
     var config: [String: String] = [:]
     config["DICTATE_REFINEMENT_ENABLED"] = isRefinementEnabled ? "true" : "false"
-    config["DICTATE_REFINEMENT_PROVIDER"] = selectedProvider.rawValue
     config["DICTATE_REFINEMENT_BASE_URL"] = baseURL
     config["DICTATE_REFINEMENT_MODEL"] = model
-    config["DICTATE_REFINEMENT_IS_OPENAI_COMPATIBLE"] =
-        selectedProvider.isOpenAICompatible ? "true" : "false"
+    config["DICTATE_REFINEMENT_IS_OPENAI_COMPATIBLE"] = "true"
     if let key = apiKey {
         config["DICTATE_REFINEMENT_API_KEY"] = key
     }
@@ -124,7 +116,7 @@ Transcription:
 
 - [Swift Guide](../swift-guide.md) - Settings implementation
 - [Python Guide](../python-guide.md) - Environment variable usage
-- [Refinement](../features/refinement.md) - AI provider configuration
+- [Refinement](../features/refinement.md) - AI refinement configuration
 
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Toggle dictation - press hotkey to start, press again to stop and transcribe
-Post-processing with configurable AI providers (OpenAI-compatible, Gemini, Anthropic)
+Post-processing with configurable AI API (OpenAI-compatible)
 Saves transcriptions to Obsidian vault for cross-device sync
 """
 
@@ -36,13 +36,6 @@ import pyaudio
 import pyperclip
 from faster_whisper import WhisperModel
 
-# Gemini integration (optional)
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
 # Settings
 MODEL_SIZE = "tiny.en"  # Fastest model for MVP testing
 SAMPLE_RATE = 16000
@@ -64,11 +57,9 @@ AUDIO_FILE = STATE_DIR / "recording.wav"
 
 # Refinement configuration (read from environment variables set by Swift app)
 REFINEMENT_ENABLED = os.environ.get("DICTATE_REFINEMENT_ENABLED", "false").lower() == "true"
-REFINEMENT_PROVIDER = os.environ.get("DICTATE_REFINEMENT_PROVIDER", "openai")
-REFINEMENT_BASE_URL = os.environ.get("DICTATE_REFINEMENT_BASE_URL", "https://api.openai.com/v1")
-REFINEMENT_MODEL = os.environ.get("DICTATE_REFINEMENT_MODEL", "gpt-4o-mini")
+REFINEMENT_BASE_URL = os.environ.get("DICTATE_REFINEMENT_BASE_URL", "")
+REFINEMENT_MODEL = os.environ.get("DICTATE_REFINEMENT_MODEL", "")
 REFINEMENT_API_KEY = os.environ.get("DICTATE_REFINEMENT_API_KEY", "")
-REFINEMENT_IS_OPENAI_COMPATIBLE = os.environ.get("DICTATE_REFINEMENT_IS_OPENAI_COMPATIBLE", "true").lower() == "true"
 REFINEMENT_PROMPT = os.environ.get("DICTATE_REFINEMENT_PROMPT", """Improve this speech-to-text transcription:
 - Fix grammar and punctuation
 - Remove filler words (um, uh, like, you know)
@@ -136,6 +127,10 @@ def refine_with_openai_compatible(text: str) -> str:
         print("No API key configured for refinement")
         return text
 
+    if not REFINEMENT_BASE_URL or not REFINEMENT_MODEL:
+        print("Base URL or model not configured for refinement")
+        return text
+
     try:
         # Build the full prompt
         full_prompt = f"{REFINEMENT_PROMPT}{text}"
@@ -193,91 +188,8 @@ def refine_with_openai_compatible(text: str) -> str:
         return text
 
 
-def refine_with_gemini(text: str) -> str:
-    """Use Google Gemini API to refine transcription"""
-    if not GEMINI_AVAILABLE:
-        print("Gemini SDK not available")
-        return text
-
-    if not REFINEMENT_API_KEY:
-        print("No API key configured for Gemini")
-        return text
-
-    try:
-        genai.configure(api_key=REFINEMENT_API_KEY)
-        model = genai.GenerativeModel(REFINEMENT_MODEL)
-
-        full_prompt = f"{REFINEMENT_PROMPT}{text}"
-
-        print(f"Gemini input: {text[:100]}...")
-        response = model.generate_content(full_prompt)
-        result = response.text.strip()
-        print(f"Gemini output: {result[:100]}...")
-        return result
-    except Exception as e:
-        print(f"Gemini error: {e}")
-        import traceback
-        traceback.print_exc()
-        return text
-
-
-def refine_with_anthropic(text: str) -> str:
-    """Use Anthropic Claude API to refine transcription"""
-    if not REFINEMENT_API_KEY:
-        print("No API key configured for Anthropic")
-        return text
-
-    try:
-        url = "https://api.anthropic.com/v1/messages"
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": REFINEMENT_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true"
-        }
-        data = {
-            "model": REFINEMENT_MODEL,
-            "max_tokens": 4096,
-            "messages": [
-                {"role": "user", "content": f"{REFINEMENT_PROMPT}{text}"}
-            ]
-        }
-
-        print(f"Anthropic request to: {url}")
-        print(f"Model: {REFINEMENT_MODEL}")
-
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(data).encode('utf-8'),
-            headers=headers,
-            method='POST'
-        )
-
-        with urllib.request.urlopen(req, timeout=60) as response:
-            result = json.loads(response.read().decode('utf-8'))
-
-            if 'content' in result and len(result['content']) > 0:
-                refined_text = result['content'][0]['text'].strip()
-                print(f"Refined text: {refined_text[:100]}...")
-                return refined_text
-            else:
-                print(f"Unexpected response format: {result}")
-                return text
-
-    except urllib.error.HTTPError as e:
-        print(f"HTTP error during Anthropic refinement: {e.code} {e.reason}")
-        error_body = e.read().decode('utf-8')
-        print(f"Error body: {error_body}")
-        return text
-    except Exception as e:
-        print(f"Anthropic error: {e}")
-        import traceback
-        traceback.print_exc()
-        return text
-
-
 def refine_transcription(text: str) -> str:
-    """Refine transcription using configured AI provider"""
+    """Refine transcription using configured AI API"""
     if not REFINEMENT_ENABLED:
         print("Refinement disabled")
         return text
@@ -285,18 +197,10 @@ def refine_transcription(text: str) -> str:
     if not text or not text.strip():
         return text
 
-    print(f"Refining with provider: {REFINEMENT_PROVIDER}")
-    print(f"Base URL: {REFINEMENT_BASE_URL}")
+    print(f"Refining with: {REFINEMENT_BASE_URL}")
     print(f"Model: {REFINEMENT_MODEL}")
 
-    # Route to appropriate provider
-    if REFINEMENT_PROVIDER == "google_gemini":
-        return refine_with_gemini(text)
-    elif REFINEMENT_PROVIDER == "anthropic":
-        return refine_with_anthropic(text)
-    else:
-        # All other providers use OpenAI-compatible API
-        return refine_with_openai_compatible(text)
+    return refine_with_openai_compatible(text)
 
 
 def ensure_state_dir():
@@ -481,7 +385,7 @@ def stop_and_transcribe():
     if text:
         # Post-process with AI refinement if enabled
         if REFINEMENT_ENABLED:
-            notify("✨ Dictation", f"Refining with {REFINEMENT_PROVIDER}...")
+            notify("✨ Dictation", f"Refining with {REFINEMENT_MODEL}...")
             text = refine_transcription(text)
             print(f"After refinement: {text}")
 

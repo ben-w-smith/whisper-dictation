@@ -25,56 +25,25 @@ struct RefinementSettingsView: View {
             }
 
             if refinementManager.isRefinementEnabled {
-                Section("Provider") {
-                    // Provider selection grouped by category
-                    Picker("Provider:", selection: $refinementManager.selectedProvider) {
-                        ForEach(RefinementManager.AIProvider.allCases, id: \.self) { provider in
-                            Text(provider.displayName).tag(provider)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    // Provider info
-                    HStack(spacing: 6) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.blue)
-                        Text(refinementManager.selectedProvider.isOpenAICompatible
-                             ? "OpenAI-compatible API format"
-                             : "Special API format - requires specific handling")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
                 Section("API Configuration") {
                     // Base URL
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Base URL:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("Base URL", text: $refinementManager.baseURL)
+                        TextField("https://api.openai.com/v1", text: $refinementManager.baseURL)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
                     }
 
-                    // Model selection
+                    // Model
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Model:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-
-                        if let preset = refinementManager.providerPreset(for: refinementManager.selectedProvider),
-                           !preset.popularModels.isEmpty {
-                            Picker("", selection: $refinementManager.model) {
-                                ForEach(preset.popularModels, id: \.self) { model in
-                                    Text(model).tag(model)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        } else {
-                            TextField("Model name", text: $refinementManager.model)
-                                .textFieldStyle(.roundedBorder)
-                        }
+                        TextField("gpt-4o-mini", text: $refinementManager.model)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
                     }
                 }
 
@@ -113,7 +82,7 @@ struct RefinementSettingsView: View {
                     // API Key input field (shown when editing)
                     if showAPIKeyField {
                         VStack(alignment: .leading, spacing: 8) {
-                            SecureField(refinementManager.selectedProvider.apiKeyPlaceholder, text: $tempAPIKey)
+                            SecureField("API Key", text: $tempAPIKey)
                                 .textFieldStyle(.roundedBorder)
 
                             HStack {
@@ -135,17 +104,6 @@ struct RefinementSettingsView: View {
                             }
                         }
                         .padding(.top, 4)
-                    }
-
-                    // Local provider note
-                    if refinementManager.selectedProvider == .ollama || refinementManager.selectedProvider == .lmStudio {
-                        HStack(spacing: 6) {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.blue)
-                            Text("Local providers typically don't require an API key")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
                     }
                 }
 
@@ -170,19 +128,16 @@ struct RefinementSettingsView: View {
 
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Refinement Tips:")
+                        Text("Setup Tips:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("- AI will clean up grammar and remove filler words")
+                        Text("- Enter your API base URL (e.g., https://api.openai.com/v1)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("- Enter the model name (e.g., gpt-4o-mini)")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                         Text("- Falls back to raw transcription if API fails")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Text("- gpt-4o-mini and deepseek-chat are fast and affordable")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Text("- Local models (Ollama/LM Studio) work offline but may be slower")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
