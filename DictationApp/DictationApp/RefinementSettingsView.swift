@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct RefinementSettingsView: View {
-    @ObservedObject private var refinementManager = RefinementManager.shared
+    @State private var isRefinementEnabled = RefinementManager.shared.isRefinementEnabled
+    @State private var baseURL = RefinementManager.shared.baseURL
+    @State private var model = RefinementManager.shared.model
+    @State private var customPrompt = RefinementManager.shared.customPrompt
     @State private var showAPIKeyField = false
     @State private var tempAPIKey = ""
     @State private var showingClearConfirmation = false
+    @State private var apiKeyStatus = RefinementManager.shared.apiKeyStatus
 
     var body: some View {
         Form {
@@ -19,21 +23,27 @@ struct RefinementSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Toggle("", isOn: $refinementManager.isRefinementEnabled)
+                    Toggle("", isOn: $isRefinementEnabled)
                         .toggleStyle(.switch)
+                        .onChange(of: isRefinementEnabled) { _, newValue in
+                            RefinementManager.shared.isRefinementEnabled = newValue
+                        }
                 }
             }
 
-            if refinementManager.isRefinementEnabled {
+            if isRefinementEnabled {
                 Section("API Configuration") {
                     // Base URL
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Base URL:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("https://api.openai.com/v1", text: $refinementManager.baseURL)
+                        TextField("https://api.openai.com/v1", text: $baseURL)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
+                            .onChange(of: baseURL) { _, newValue in
+                                RefinementManager.shared.baseURL = newValue
+                            }
                     }
 
                     // Model
@@ -41,25 +51,28 @@ struct RefinementSettingsView: View {
                         Text("Model:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("gpt-4o-mini", text: $refinementManager.model)
+                        TextField("gpt-4o-mini", text: $model)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
+                            .onChange(of: model) { _, newValue in
+                                RefinementManager.shared.model = newValue
+                            }
                     }
                 }
 
                 Section("API Key") {
                     // API Key status and management
                     HStack {
-                        Image(systemName: refinementManager.apiKeyStatus.iconName)
+                        Image(systemName: apiKeyStatus.iconName)
                             .foregroundStyle(apiKeyStatusColor)
 
-                        Text(refinementManager.apiKeyStatus.displayText)
+                        Text(apiKeyStatus.displayText)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
-                        if refinementManager.apiKeyStatus == .set {
+                        if apiKeyStatus == .set {
                             Button("Change") {
                                 tempAPIKey = ""
                                 showAPIKeyField = true
@@ -95,12 +108,13 @@ struct RefinementSettingsView: View {
                                 Spacer()
 
                                 Button("Save") {
-                                    _ = refinementManager.saveAPIKey(tempAPIKey)
+                                    _ = RefinementManager.shared.saveAPIKey(tempAPIKey)
+                                    apiKeyStatus = RefinementManager.shared.apiKeyStatus
                                     showAPIKeyField = false
                                     tempAPIKey = ""
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .disabled(tempAPIKey.isEmpty && refinementManager.apiKeyStatus != .set)
+                                .disabled(tempAPIKey.isEmpty && apiKeyStatus != .set)
                             }
                         }
                         .padding(.top, 4)
@@ -113,13 +127,17 @@ struct RefinementSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        TextEditor(text: $refinementManager.customPrompt)
+                        TextEditor(text: $customPrompt)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 100, maxHeight: 150)
                             .border(Color.secondary.opacity(0.2))
+                            .onChange(of: customPrompt) { _, newValue in
+                                RefinementManager.shared.customPrompt = newValue
+                            }
 
                         Button("Reset to Default") {
-                            refinementManager.customPrompt = RefinementManager.defaultPrompt
+                            customPrompt = RefinementManager.defaultPrompt
+                            RefinementManager.shared.customPrompt = RefinementManager.defaultPrompt
                         }
                         .buttonStyle(.bordered)
                         .font(.caption)
@@ -149,7 +167,8 @@ struct RefinementSettingsView: View {
         .alert("Clear API Key?", isPresented: $showingClearConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
-                refinementManager.deleteAPIKey()
+                RefinementManager.shared.deleteAPIKey()
+                apiKeyStatus = RefinementManager.shared.apiKeyStatus
             }
         } message: {
             Text("This will remove the stored API key from your keychain.")
@@ -157,7 +176,7 @@ struct RefinementSettingsView: View {
     }
 
     private var apiKeyStatusColor: Color {
-        switch refinementManager.apiKeyStatus {
+        switch apiKeyStatus {
         case .notSet:
             return .secondary
         case .set:
