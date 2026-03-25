@@ -1,0 +1,111 @@
+{
+  "patterns": [
+    {
+      "id": "openai",
+      "name": "OpenAI-compatible",
+      "description": "Works with OpenAI, DeepSeek, Moonshot, Groq, Qwen, OpenRouter, Ollama, LM Studio, and any OpenAI-compatible API",
+      "defaultBaseURL": "https://api.openai.com/v1",
+      "exampleModels": ["gpt-4o-mini", "gpt-4o", "o4-mini"]
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic/Claude",
+      "description": "Works with Anthropic's Claude API and Anthropic-compatible proxies",
+      "defaultBaseURL": "https://api.anthropic.com/v1",
+      "exampleModels": ["claude-3-5-haiku-20241022", "claude-3-7-sonnet"]
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini",
+      "description": "Works with Google's Gemini API",
+      "defaultBaseURL": "https://generativelanguage.googleapis.com/v1beta",
+      "exampleModels": ["gemini-2.5-flash", "gemini-2.5-pro"]
+    }
+  ],
+  "providers": [
+    {
+      "name": "OpenAI",
+      "pattern": "openai",
+      "baseURL": "https://api.openai.com/v1",
+      "models": ["gpt-4o-mini", "gpt-4o", "o4-mini"],
+      "docsURL": "https://platform.openai.com/docs/models",
+      "apiKeyURL": "https://platform.openai.com/api-keys"
+    },
+    {
+      "name": "Anthropic",
+      "pattern": "anthropic",
+      "baseURL": "https://api.anthropic.com/v1",
+      "models": ["claude-3-5-haiku-20241022", "claude-3-7-sonnet"],
+      "docsURL": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "apiKeyURL": "https://console.anthropic.com/settings/keys"
+    },
+    {
+      "name": "Google Gemini",
+      "pattern": "gemini",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta",
+      "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
+      "docsURL": "https://ai.google.dev/gemini-api/docs/models/gemini",
+      "apiKeyURL": "https://aistudio.google.com/apikey"
+    },
+    {
+      "name": "DeepSeek",
+      "pattern": "openai",
+      "baseURL": "https://api.deepseek.com/v1",
+      "models": ["deepseek-chat", "deepseek-reasoner"],
+      "docsURL": "https://api-docs.deepseek.com/",
+      "apiKeyURL": "https://platform.deepseek.com/api_keys"
+    },
+    {
+      "name": "Moonshot (Kimi)",
+      "pattern": "openai",
+      "baseURL": "https://api.moonshot.ai/v1",
+      "models": ["kimi-k2-turbo-preview", "kimi-k2.5"],
+      "docsURL": "https://platform.moonshot.ai/docs",
+      "apiKeyURL": "https://platform.moonshot.ai/console/api-keys"
+    },
+    {
+      "name": "Groq",
+      "pattern": "openai",
+      "baseURL": "https://api.groq.com/openai/v1",
+      "models": ["llama-3.3-70b-versatile", "llama-4-scout-17b"],
+      "docsURL": "https://console.groq.com/docs/models",
+      "apiKeyURL": "https://console.groq.com/keys"
+    },
+    {
+      "name": "Qwen (DashScope)",
+      "pattern": "openai",
+      "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "models": ["qwen-turbo", "qwen-plus", "qwen-max"],
+      "docsURL": "https://help.aliyun.com/zh/model-studio/developer-reference/model-square",
+      "apiKeyURL": "https://dashscope.console.aliyun.com/apiKey"
+    },
+    {
+      "name": "OpenRouter",
+      "pattern": "openai",
+      "baseURL": "https://openrouter.ai/api/v1",
+      "models": ["openai/gpt-4o-mini", "anthropic/claude-3.5-haiku", "google/gemini-2.5-flash-preview"],
+      "docsURL": "https://openrouter.ai/models",
+      "apiKeyURL": "https://openrouter.ai/keys"
+    },
+    {
+      "name": "Ollama (Local)",
+      "pattern": "openai",
+      "baseURL": "http://localhost:11434/v1",
+      "models": ["llama3.2", "deepseek-r1", "mistral"],
+      "docsURL": "https://ollama.com/library",
+      "apiKeyURL": null,
+      "local": true,
+      "note": "Requires Ollama to be running locally"
+    },
+    {
+      "name": "LM Studio (Local)",
+      "pattern": "openai",
+      "baseURL": "http://localhost:1234/v1",
+      "models": [],
+      "docsURL": "https://lmstudio.ai/docs",
+      "apiKeyURL": null,
+      "local": true,
+      "note": "Requires LM Studio server to be running"
+    }
+  ]
+}

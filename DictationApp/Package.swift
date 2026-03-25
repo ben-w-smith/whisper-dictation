@@ -19,7 +19,10 @@ let package = Package(
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
             ],
             path: "DictationApp",
-            exclude: ["Resources/Info.plist"]
+            exclude: ["Resources/Info.plist"],
+            resources: [
+                .copy("Resources/providers.json")
+            ]
         )
     ]
 )

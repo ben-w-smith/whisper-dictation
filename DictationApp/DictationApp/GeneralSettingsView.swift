@@ -150,6 +150,21 @@ struct GeneralSettingsView: View {
                         }
                 }
             }
+
+            Section {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 4) {
+                        Text(appVersion)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Dictation Beta")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -184,5 +199,11 @@ struct GeneralSettingsView: View {
         } catch {
             print("Failed to set launch at login: \(error)")
         }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "Version \(version) (\(build))"
     }
 }

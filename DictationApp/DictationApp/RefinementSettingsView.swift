@@ -5,6 +5,10 @@ struct RefinementSettingsView: View {
     @State private var showAPIKeyField = false
     @State private var tempAPIKey = ""
     @State private var showingClearConfirmation = false
+    @State private var showProviderExamples = false
+
+    // Provider examples loaded from providers.json
+    @State private var providers: [ProviderInfo] = ProviderInfo.loadProviders()
 
     var body: some View {
         Form {
@@ -25,13 +29,28 @@ struct RefinementSettingsView: View {
             }
 
             if refinementManager.isRefinementEnabled {
+                Section("API Pattern") {
+                    Picker("Pattern", selection: $refinementManager.apiPattern) {
+                        ForEach(RefinementManager.APIPattern.allCases) { pattern in
+                            VStack(alignment: .leading) {
+                                Text(pattern.displayName)
+                                Text(pattern.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .tag(pattern)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
                 Section("API Configuration") {
                     // Base URL
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Base URL:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("https://api.openai.com/v1", text: $refinementManager.baseURL)
+                        TextField(refinementManager.apiPattern.defaultBaseURL, text: $refinementManager.baseURL)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
                     }
@@ -41,9 +60,30 @@ struct RefinementSettingsView: View {
                         Text("Model:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("gpt-4o-mini", text: $refinementManager.model)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
+                        TextField(
+                            "e.g., \(refinementManager.apiPattern.exampleModels.first ?? "model-name")",
+                            text: $refinementManager.model
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    }
+                }
+
+                // Popular Providers (collapsible)
+                Section {
+                    DisclosureGroup("Popular Providers", isExpanded: $showProviderExamples) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(providersForCurrentPattern) { provider in
+                                ProviderRowView(provider: provider) { selectedProvider in
+                                    // Auto-fill base URL when clicked
+                                    refinementManager.baseURL = selectedProvider.baseURL
+                                    if let firstModel = selectedProvider.models.first {
+                                        refinementManager.model = firstModel
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
 
@@ -131,10 +171,10 @@ struct RefinementSettingsView: View {
                         Text("Setup Tips:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("- Enter your API base URL (e.g., https://api.openai.com/v1)")
+                        Text("- Select your API pattern above")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
-                        Text("- Enter the model name (e.g., gpt-4o-mini)")
+                        Text("- Click a provider in 'Popular Providers' to auto-fill URL")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                         Text("- Falls back to raw transcription if API fails")
@@ -166,9 +206,98 @@ struct RefinementSettingsView: View {
             return .red
         }
     }
+
+    private var providersForCurrentPattern: [ProviderInfo] {
+        providers.filter { $0.pattern == refinementManager.apiPattern.rawValue }
+    }
+}
+
+// MARK: - Provider Info Model
+
+struct ProviderInfo: Identifiable, Codable {
+    let id = UUID()
+    let name: String
+    let pattern: String
+    let baseURL: String
+    let models: [String]
+    let docsURL: String?
+    let apiKeyURL: String?
+    let local: Bool?
+    let note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, pattern, baseURL, models, docsURL, apiKeyURL, local, note
+    }
+
+    // Load providers from JSON file
+    static func loadProviders() -> [ProviderInfo] {
+        guard let url = Bundle.main.url(forResource: "providers", withExtension: "json") else {
+            print("providers.json not found in bundle")
+            return []
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            // Decode the top-level object and extract the providers array
+            struct ProvidersFile: Codable {
+                let providers: [ProviderInfo]
+            }
+            let file = try decoder.decode(ProvidersFile.self, from: data)
+            return file.providers
+        } catch {
+            print("Error loading providers.json: \(error)")
+            return []
+        }
+    }
+}
+
+// MARK: - Provider Row View
+
+struct ProviderRowView: View {
+    let provider: ProviderInfo
+    let onSelect: (ProviderInfo) -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(provider.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    if provider.local == true {
+                        Text("(Local)")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Text(provider.baseURL)
+                    .font(.caption)
+                    .fontDesign(.monospaced)
+                    .foregroundStyle(.secondary)
+
+                if let note = provider.note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+
+            Button("Use") {
+                onSelect(provider)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 2)
+    }
 }
 
 #Preview {
     RefinementSettingsView()
-        .frame(width: 550, height: 650)
+        .frame(width: 550, height: 700)
 }
