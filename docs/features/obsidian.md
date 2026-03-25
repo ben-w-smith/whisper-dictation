@@ -76,13 +76,25 @@ Transcriptions are saved as markdown files with YAML frontmatter:
 
 ```markdown
 ---
-date: 2026-03-24T15:30:00Z
+created: 2026-03-24T15:30:00Z
 model: tiny.en
-duration: 12.5
+duration: 12.50
+word_count: 45
+wpm: 216.0
 ---
 
 This is the transcribed text content.
 ```
+
+### Frontmatter Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `created` | ISO8601 datetime | When the transcription was created |
+| `model` | string | Whisper model used (e.g., `tiny.en`) |
+| `duration` | float | Audio duration in seconds |
+| `word_count` | int | Number of words in the transcription |
+| `wpm` | float | Words per minute (calculated) |
 
 ## Transcription Path
 
