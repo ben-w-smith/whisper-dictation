@@ -102,15 +102,24 @@ def get_input_device_index() -> int | None:
 
 
 def save_transcription(text: str, model: str) -> Path | None:
-    """Save transcription to Obsidian vault. Returns file path or None if blank."""
+    """Save transcription to Obsidian vault if configured. Returns file path or None."""
     # Skip blank/empty transcriptions
     if not text or not text.strip():
         return None
 
     text = text.strip()
 
+    # Check if Obsidian vault exists
+    if not OBSIDIAN_VAULT.exists():
+        print(f"Obsidian vault not found at {OBSIDIAN_VAULT}, skipping save")
+        return None
+
     # Ensure transcriptions directory exists
-    TRANSCRIPTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        TRANSCRIPTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Could not create transcriptions directory: {e}")
+        return None
 
     # Generate filename with timestamp
     timestamp = datetime.now()
@@ -126,8 +135,12 @@ model: {model}
 {text}
 """
 
-    filepath.write_text(content)
-    return filepath
+    try:
+        filepath.write_text(content)
+        return filepath
+    except Exception as e:
+        print(f"Could not save to Obsidian vault: {e}")
+        return None
 
 
 def refine_with_openai_compatible(text: str) -> str:
@@ -495,6 +508,8 @@ def stop_and_transcribe():
         print("TRANSCRIPTION_START")
         print(text)
         print("TRANSCRIPTION_END")
+        print(f"TRANSCRIPTION_MODEL:{MODEL_SIZE}")
+        print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
 
         if saved_path:
             notify("✅ Dictation", f"Copied & saved: {text[:40]}{'...' if len(text) > 40 else ''}")
@@ -506,6 +521,8 @@ def stop_and_transcribe():
         print("TRANSCRIPTION_START")
         print("")
         print("TRANSCRIPTION_END")
+        print(f"TRANSCRIPTION_MODEL:{MODEL_SIZE}")
+        print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
 
     # Cleanup
     AUDIO_FILE.unlink(missing_ok=True)

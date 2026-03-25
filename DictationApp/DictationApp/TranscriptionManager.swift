@@ -19,7 +19,12 @@ class TranscriptionManager: ObservableObject {
     private let scriptsPath = "/Users/bensmith/whisper-dictation"
     private let venvPython: String
 
-    // Reference to ObsidianManager for vault path
+    // Reference to HistoryManager for local storage
+    private var historyManager: HistoryManager {
+        HistoryManager.shared
+    }
+
+    // Reference to ObsidianManager for vault path (optional)
     private var obsidianManager: ObsidianManager {
         ObsidianManager.shared
     }
@@ -286,46 +291,14 @@ class TranscriptionManager: ObservableObject {
 
     // MARK: - Transcription History
     func loadTranscriptions() {
-        // Check if Obsidian vault is configured and enabled
-        guard obsidianManager.isReady,
-              let transcriptionsPath = obsidianManager.transcriptionsPath else {
-            print("Obsidian vault not configured - skipping transcription history load")
-            transcriptions = []
-            statisticsManager.updateFromTranscriptions(transcriptions)
-            return
-        }
+        // Always load from local history (works regardless of Obsidian vault)
+        historyManager.reloadHistory()
+        transcriptions = historyManager.transcriptions
 
-        let url = URL(fileURLWithPath: transcriptionsPath)
-        guard FileManager.default.fileExists(atPath: transcriptionsPath) else {
-            print("Obsidian transcriptions folder not found: \(transcriptionsPath)")
-            transcriptions = []
-            statisticsManager.updateFromTranscriptions(transcriptions)
-            return
-        }
+        print("Loaded \(transcriptions.count) transcriptions from local history")
 
-        do {
-            let files = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: [.contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            )
-
-            let markdownFiles = files
-                .filter { $0.pathExtension == "md" }
-                .sorted { file1, file2 in
-                    let date1 = (try? file1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
-                    let date2 = (try? file2.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
-                    return date1 > date2
-                }
-
-            transcriptions = markdownFiles.compactMap { Transcription.fromObsidianFile(url: $0) }
-            print("Loaded \(transcriptions.count) transcriptions from Obsidian")
-
-            // Update statistics from loaded transcriptions
-            statisticsManager.updateFromTranscriptions(transcriptions)
-        } catch {
-            print("Error loading transcriptions: \(error)")
-        }
+        // Update statistics from loaded transcriptions
+        statisticsManager.updateFromTranscriptions(transcriptions)
     }
 
     // MARK: - Recording Control
@@ -374,41 +347,46 @@ class TranscriptionManager: ObservableObject {
                 let result = try await runPythonScript(name: "dictate-toggle.py")
                 print("Recording stopped: \(result)")
 
-                // Parse the transcription text from Python output
-                let transcriptionText = parseTranscriptionFromOutput(result)
+                // Parse the transcription from Python output
+                guard let parsed = parseTranscriptionFromOutput(result) else {
+                    print("No transcription text, clearing focused element")
+                    AutoPasteManager.shared.clearFocusedElement()
+                    return
+                }
 
-                // Reload transcriptions from Obsidian (for history)
-                loadTranscriptions()
+                let (text, model, timestamp) = parsed
+
+                // Create transcription and save to local history
+                let transcription = Transcription(
+                    text: text,
+                    timestamp: timestamp,
+                    model: model
+                )
+                historyManager.addTranscription(transcription)
+
+                // Update our published array from history manager
+                transcriptions = historyManager.transcriptions
 
                 // Record the new transcription in statistics
-                if let latestTranscription = transcriptions.first {
-                    statisticsManager.recordTranscription(latestTranscription)
-                }
+                statisticsManager.recordTranscription(transcription)
 
                 // Play transcription ready sound after processing completes
                 SoundManager.shared.playTranscriptionReady()
 
-                // Handle clipboard and auto-paste with the parsed transcription
-                if let text = transcriptionText, !text.isEmpty {
-                    print("TranscriptionManager: Transcription text ready, length: \(text.count)")
-                    print("TranscriptionManager: AutoPasteManager.shared.isEnabled = \(AutoPasteManager.shared.isEnabled)")
-                    print("TranscriptionManager: AutoPasteManager.shared.hasAccessibilityPermission = \(AutoPasteManager.shared.hasAccessibilityPermission)")
+                print("TranscriptionManager: Transcription text ready, length: \(text.count)")
+                print("TranscriptionManager: AutoPasteManager.shared.isEnabled = \(AutoPasteManager.shared.isEnabled)")
+                print("TranscriptionManager: AutoPasteManager.shared.hasAccessibilityPermission = \(AutoPasteManager.shared.hasAccessibilityPermission)")
 
-                    // Always copy to clipboard as fallback
-                    AutoPasteManager.shared.copyToClipboardPublic(text: text)
+                // Always copy to clipboard as fallback
+                AutoPasteManager.shared.copyToClipboardPublic(text: text)
 
-                    // Auto-paste if enabled
-                    if AutoPasteManager.shared.isEnabled {
-                        print("TranscriptionManager: Calling autoPaste()")
-                        await AutoPasteManager.shared.autoPaste(text: text)
-                        print("TranscriptionManager: autoPaste() completed")
-                    } else {
-                        print("TranscriptionManager: Auto-paste is disabled, skipping")
-                    }
+                // Auto-paste if enabled
+                if AutoPasteManager.shared.isEnabled {
+                    print("TranscriptionManager: Calling autoPaste()")
+                    await AutoPasteManager.shared.autoPaste(text: text)
+                    print("TranscriptionManager: autoPaste() completed")
                 } else {
-                    print("TranscriptionManager: No transcription text, clearing focused element")
-                    // Clear focused element if no transcription
-                    AutoPasteManager.shared.clearFocusedElement()
+                    print("TranscriptionManager: Auto-paste is disabled, skipping")
                 }
             } catch {
                 lastError = "Failed to stop recording: \(error)"
@@ -418,7 +396,7 @@ class TranscriptionManager: ObservableObject {
     }
 
     /// Parse transcription text from Python script output
-    private func parseTranscriptionFromOutput(_ output: String) -> String? {
+    private func parseTranscriptionFromOutput(_ output: String) -> (text: String, model: WhisperModel, timestamp: Date)? {
         // Look for TRANSCRIPTION_START and TRANSCRIPTION_END markers
         guard let startIndex = output.range(of: "TRANSCRIPTION_START")?.upperBound,
               let endIndex = output.range(of: "TRANSCRIPTION_END")?.lowerBound else {
@@ -428,7 +406,30 @@ class TranscriptionManager: ObservableObject {
 
         let text = String(output[startIndex..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
         print("Parsed transcription: \(text)")
-        return text.isEmpty ? nil : text
+
+        guard !text.isEmpty else { return nil }
+
+        // Parse model
+        let model: WhisperModel
+        if let modelRange = output.range(of: "TRANSCRIPTION_MODEL:"),
+           let modelEnd = output[modelRange.upperBound...].firstIndex(of: "\n") {
+            let modelString = String(output[modelRange.upperBound..<modelEnd]).trimmingCharacters(in: .whitespaces)
+            model = WhisperModel(rawValue: modelString) ?? .tinyEn
+        } else {
+            model = selectedModel
+        }
+
+        // Parse timestamp
+        let timestamp: Date
+        if let tsRange = output.range(of: "TRANSCRIPTION_TIMESTAMP:"),
+           let tsEnd = output[tsRange.upperBound...].firstIndex(of: "\n") {
+            let tsString = String(output[tsRange.upperBound..<tsEnd]).trimmingCharacters(in: .whitespaces)
+            timestamp = ISO8601DateFormatter().date(from: tsString) ?? Date()
+        } else {
+            timestamp = Date()
+        }
+
+        return (text, model, timestamp)
     }
 
     // MARK: - Python Script Execution
