@@ -55,12 +55,30 @@ struct Transcription: Identifiable, Codable {
     let text: String
     let timestamp: Date
     let model: WhisperModel
+    let duration: Double  // Audio duration in seconds
+    let wordCount: Int
+    let wpm: Double  // Words per minute
 
-    init(id: UUID = UUID(), text: String, timestamp: Date = Date(), model: WhisperModel) {
+    init(id: UUID = UUID(), text: String, timestamp: Date = Date(), model: WhisperModel, duration: Double = 0, wordCount: Int = 0, wpm: Double = 0) {
         self.id = id
         self.text = text
         self.timestamp = timestamp
         self.model = model
+        self.duration = duration
+        self.wordCount = wordCount > 0 ? wordCount : Self.countWords(in: text)
+        self.wpm = wpm > 0 ? wpm : Self.calculateWpm(wordCount: wordCount, duration: duration)
+    }
+
+    /// Count words in text
+    static func countWords(in text: String) -> Int {
+        let words = text.components(separatedBy: .whitespacesAndNewlines)
+        return words.filter { !$0.isEmpty }.count
+    }
+
+    /// Calculate WPM from word count and duration
+    static func calculateWpm(wordCount: Int, duration: Double) -> Double {
+        guard duration > 0 else { return 0 }
+        return Double(wordCount) / (duration / 60.0)
     }
 }
 
@@ -74,6 +92,9 @@ extension Transcription {
         // Parse frontmatter
         var created: Date?
         var modelName: String?
+        var duration: Double = 0
+        var wordCount: Int = 0
+        var wpm: Double = 0
 
         // Simple frontmatter parsing
         let lines = content.components(separatedBy: "\n")
@@ -99,6 +120,15 @@ extension Transcription {
                     created = ISO8601DateFormatter().date(from: value)
                 } else if line.hasPrefix("model:") {
                     modelName = line.replacingOccurrences(of: "model:", with: "").trimmingCharacters(in: .whitespaces)
+                } else if line.hasPrefix("duration:") {
+                    let value = line.replacingOccurrences(of: "duration:", with: "").trimmingCharacters(in: .whitespaces)
+                    duration = Double(value) ?? 0
+                } else if line.hasPrefix("word_count:") {
+                    let value = line.replacingOccurrences(of: "word_count:", with: "").trimmingCharacters(in: .whitespaces)
+                    wordCount = Int(value) ?? 0
+                } else if line.hasPrefix("wpm:") {
+                    let value = line.replacingOccurrences(of: "wpm:", with: "").trimmingCharacters(in: .whitespaces)
+                    wpm = Double(value) ?? 0
                 }
             } else if pastFrontmatter {
                 textLines.append(line)
@@ -111,11 +141,24 @@ extension Transcription {
               let model = WhisperModel(rawValue: modelName ?? "tiny.en")
         else { return nil }
 
+        // Calculate word count if not stored
+        if wordCount == 0 {
+            wordCount = countWords(in: text)
+        }
+
+        // Calculate WPM if not stored but we have duration
+        if wpm == 0 && duration > 0 {
+            wpm = calculateWpm(wordCount: wordCount, duration: duration)
+        }
+
         return Transcription(
             id: UUID(),
             text: text,
             timestamp: created ?? Date(),
-            model: model
+            model: model,
+            duration: duration,
+            wordCount: wordCount,
+            wpm: wpm
         )
     }
 }
