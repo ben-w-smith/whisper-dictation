@@ -64,6 +64,25 @@ class AutoPasteManager: ObservableObject {
 }
 ```
 
+### Text Field Bindings with Singletons
+
+When binding text fields to singleton managers, use local `@State` properties with `onChange` handlers rather than direct bindings. This avoids issues with `@ObservedObject` inline initialization and `@MainActor` isolation:
+
+```swift
+// AVOID - can cause text field input issues
+@ObservedObject private var manager = Manager.shared
+TextField("URL", text: $manager.baseURL)
+
+// PREFER - reliable text input
+@State private var baseURL = Manager.shared.baseURL
+TextField("URL", text: $baseURL)
+    .onChange(of: baseURL) { _, newValue in
+        Manager.shared.baseURL = newValue
+    }
+```
+
+See [Refinement](features/refinement.md) for a complete example.
+
 ### UserDefaults Persistence
 
 Settings are persisted via `UserDefaults` with `didSet` observers:
