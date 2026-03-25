@@ -32,6 +32,11 @@ class SetupManager: ObservableObject {
     @Published var setupProgress: String = ""
     @Published var setupError: String?
 
+    // Model download state
+    @Published var isDownloadingModel: Bool = false
+    @Published var downloadProgress: String = ""
+    @Published var downloadedModels: Set<String> = []
+
     // MARK: - Types
 
     enum SetupStep: Int, CaseIterable {
@@ -439,6 +444,72 @@ class SetupManager: ObservableObject {
         case .distilLargeV3:
             return "Best quality, slowest. Only for the most demanding use cases."
         }
+    }
+
+    // MARK: - Model Download
+
+    func downloadSelectedModel() {
+        isDownloadingModel = true
+        downloadProgress = "Starting download..."
+
+        Task {
+            do {
+                let model = selectedModel
+                let modelName = model.huggingFaceModelName
+
+                await MainActor.run {
+                    downloadProgress = "Downloading \(model.displayName)..."
+                }
+
+                // Run warmup-model.py which will download the model
+                let scriptsPath = PathManager.scriptsPath
+                let warmupScript = URL(fileURLWithPath: "\(scriptsPath)/warmup-model.py")
+
+                guard FileManager.default.fileExists(atPath: warmupScript.path) else {
+                    await MainActor.run {
+                        downloadProgress = "Error: warmup-model.py not found"
+                        isDownloadingModel = false
+                    }
+                    return
+                }
+
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "\(scriptsPath)/venv/bin/python")
+                process.arguments = [warmupScript.path, "--model", modelName]
+
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+
+                try process.run()
+                process.waitUntilExit()
+
+                if process.terminationStatus == 0 {
+                    await MainActor.run {
+                        downloadedModels.insert(modelName)
+                        downloadProgress = "\(model.displayName) downloaded successfully!"
+                        isDownloadingModel = false
+                    }
+                } else {
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                    await MainActor.run {
+                        downloadProgress = "Download failed: \(error)"
+                        isDownloadingModel = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    downloadProgress = "Error: \(error.localizedDescription)"
+                    isDownloadingModel = false
+                }
+            }
+        }
+    }
+
+    func isModelDownloaded(_ model: WhisperModel) -> Bool {
+        return downloadedModels.contains(model.huggingFaceModelName)
     }
 }
 

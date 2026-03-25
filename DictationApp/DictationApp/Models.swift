@@ -48,6 +48,17 @@ enum WhisperModel: String, CaseIterable, Identifiable, Codable {
         case .distilLargeV3: return "~6x realtime"
         }
     }
+
+    /// The model name used by faster-whisper/HuggingFace
+    var huggingFaceModelName: String {
+        switch self {
+        case .tinyEn: return "Systran/faster-whisper-tiny.en"
+        case .baseEn: return "Systran/faster-whisper-base.en"
+        case .distilSmallEn: return "Systran/faster-distil-whisper-small.en"
+        case .distilMediumEn: return "Systran/faster-distil-whisper-medium.en"
+        case .distilLargeV3: return "Systran/faster-distil-whisper-large-v3"
+        }
+    }
 }
 
 struct Transcription: Identifiable, Codable {
