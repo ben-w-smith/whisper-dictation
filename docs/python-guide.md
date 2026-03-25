@@ -127,7 +127,6 @@ Configuration is passed from Swift via environment variables:
 | Variable | Description |
 |----------|-------------|
 | `DICTATE_REFINEMENT_ENABLED` | Enable AI post-processing |
-| `DICTATE_REFINEMENT_PROVIDER` | AI provider (openai, anthropic, etc.) |
 | `DICTATE_REFINEMENT_BASE_URL` | API base URL |
 | `DICTATE_REFINEMENT_MODEL` | Model name |
 | `DICTATE_REFINEMENT_API_KEY` | API key |
@@ -140,10 +139,9 @@ Scripts fall back gracefully on errors:
 ```python
 # Fall back to raw transcription if refinement fails
 try:
-    if USE_GEMINI and api_key:
-        text = refine_with_gemini(text, api_key)
+    text = refine_transcription(text)
 except Exception as e:
-    print(f"Gemini refinement failed: {e}")
+    print(f"Refinement failed: {e}")
     # Continue with raw transcription
 ```
 
