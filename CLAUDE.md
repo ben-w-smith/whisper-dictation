@@ -28,11 +28,15 @@ Swift menu bar app + Python transcription scripts. Swift calls Python via `Proce
 |------|---------|
 | `DictationApp/DictationApp.swift` | App entry point (MenuBarExtra) |
 | `DictationApp/TranscriptionManager.swift` | Central state coordinator |
+| `DictationApp/PathManager.swift` | Dynamic path resolution for scripts |
+| `DictationApp/SetupManager.swift` | First-run setup wizard logic |
+| `DictationApp/SetupWizardView.swift` | Setup wizard UI |
 | `DictationApp/AutoPasteManager.swift` | Accessibility-based auto-paste |
 | `DictationApp/StatisticsManager.swift` | Usage tracking |
 | `DictationApp/RefinementManager.swift` | AI post-processing config |
 | `dictate-toggle.py` | Main script: record + transcribe |
 | `warmup-model.py` | Pre-load Whisper model |
+| `setup.sh` | System dependency setup and venv creation |
 
 ## Communication Flow
 
@@ -94,6 +98,23 @@ static let toggleDictation = Self("toggleDictation",
 ### Change Vault Path
 
 Use Settings UI or edit `ObsidianManager` default path.
+
+### First-Run Setup
+
+The app includes a setup wizard that launches automatically on first run:
+- Checks system dependencies (Python, Homebrew, PortAudio, venv)
+- Guides through permissions (Microphone, Accessibility optional)
+- Configures Obsidian vault path (optional)
+- Selects default Whisper model
+
+Skip the wizard or run it later from Settings.
+
+### Path Management
+
+The `PathManager` handles script location across different contexts:
+- **Xcode/swift build**: Finds scripts relative to build output
+- **App bundle**: Looks in Resources or sibling directories
+- **Development**: Uses current working directory or common locations
 
 ---
 

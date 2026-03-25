@@ -184,8 +184,7 @@ class ObsidianManager: ObservableObject {
     func updatePythonScript() -> Bool {
         guard let vaultPath = vaultPath else { return false }
 
-        let scriptsPath = "/Users/bensmith/whisper-dictation"
-        let scriptPath = "\(scriptsPath)/dictate-toggle.py"
+        let scriptPath = "\(PathManager.scriptsPath)/dictate-toggle.py"
 
         guard var content = try? String(contentsOfFile: scriptPath, encoding: .utf8) else {
             print("Could not read dictate-toggle.py")

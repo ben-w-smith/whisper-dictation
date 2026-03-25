@@ -101,6 +101,16 @@ Download the latest release from the [Releases](releases) page. Note: You still 
 
 ## Configuration
 
+### First-Run Setup
+
+When you first launch the app, a setup wizard will guide you through:
+1. System dependency check
+2. Permission requests (Microphone, optional Accessibility)
+3. Obsidian vault configuration (optional)
+4. Whisper model selection
+
+You can skip the wizard and configure these later in Settings.
+
 ### Settings
 
 Open Settings (Cmd+, or click Settings button) to configure:

@@ -16,7 +16,6 @@ class TranscriptionManager: ObservableObject {
     @Published var selectedInputDevice: AudioDevice = .systemDefault
 
     // MARK: - Configuration
-    private let scriptsPath = "/Users/bensmith/whisper-dictation"
     private let venvPython: String
 
     // Reference to HistoryManager for local storage
@@ -36,7 +35,7 @@ class TranscriptionManager: ObservableObject {
 
     // MARK: - Initialization
     init() {
-        self.venvPython = "\(scriptsPath)/venv/bin/python"
+        self.venvPython = PathManager.venvPython
         loadSelectedModel()
         loadSelectedInputDevice()
         loadTranscriptions()
@@ -111,7 +110,7 @@ class TranscriptionManager: ObservableObject {
     }
 
     private func updateWarmupScriptModel() {
-        let scriptPath = "\(scriptsPath)/warmup-model.py"
+        let scriptPath = "\(PathManager.scriptsPath)/warmup-model.py"
         guard var content = try? String(contentsOfFile: scriptPath, encoding: .utf8) else { return }
 
         let pattern = #"WhisperModel\("[^"]+""#
@@ -434,7 +433,7 @@ class TranscriptionManager: ObservableObject {
 
     // MARK: - Python Script Execution
     private func runPythonScript(name: String) async throws -> String {
-        let scriptPath = "\(scriptsPath)/\(name)"
+        let scriptPath = "\(PathManager.scriptsPath)/\(name)"
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: venvPython)
@@ -446,6 +445,12 @@ class TranscriptionManager: ObservableObject {
         for (key, value) in refinementConfig {
             environment[key] = value
         }
+
+        // Pass Obsidian vault path if configured
+        if obsidianManager.isReady, let vaultPath = obsidianManager.vaultPath {
+            environment["DICTATE_OBSIDIAN_VAULT"] = vaultPath.path
+        }
+
         process.environment = environment
 
         let outputPipe = Pipe()
@@ -470,7 +475,7 @@ class TranscriptionManager: ObservableObject {
     }
 
     private func updateScriptModel() {
-        let scriptPath = "\(scriptsPath)/dictate-toggle.py"
+        let scriptPath = "\(PathManager.scriptsPath)/dictate-toggle.py"
         guard var content = try? String(contentsOfFile: scriptPath, encoding: .utf8) else {
             print("Could not read script file")
             return

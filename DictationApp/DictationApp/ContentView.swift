@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var manager: TranscriptionManager
     @Environment(\.openSettings) var openSettings
+    @StateObject private var setupManager = SetupManager.shared
+    @State private var showSetupWizard = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,6 +161,16 @@ struct ContentView: View {
             .background(.ultraThickMaterial)
         }
         .frame(width: 320)
+        .sheet(isPresented: $showSetupWizard) {
+            SetupWizardView()
+                .interactiveDismissDisabled(true)
+        }
+        .onAppear {
+            // Show setup wizard if not completed
+            if !setupManager.setupCompleted {
+                showSetupWizard = true
+            }
+        }
     }
 
     private var buttonText: String {

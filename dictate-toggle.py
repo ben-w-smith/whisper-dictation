@@ -47,7 +47,13 @@ CHANNELS = 1
 INPUT_DEVICE_INDEX = 1  # USB microphone"
 
 # Obsidian vault storage
-OBSIDIAN_VAULT = Path("/Users/bensmith/ObsidianVault/Default")
+# Read from environment variable set by Swift app, with fallback for testing
+OBSIDIAN_VAULT_PATH = os.environ.get("DICTATE_OBSIDIAN_VAULT")
+if OBSIDIAN_VAULT_PATH:
+    OBSIDIAN_VAULT = Path(OBSIDIAN_VAULT_PATH)
+else:
+    # Fallback for standalone use - can be set here for testing
+    OBSIDIAN_VAULT = Path.home() / "Documents" / "ObsidianVault" / "Default"
 TRANSCRIPTIONS_DIR = OBSIDIAN_VAULT / "transcriptions"
 
 # State files
