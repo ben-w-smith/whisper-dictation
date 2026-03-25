@@ -93,7 +93,12 @@ def get_input_device_index() -> int | None:
         return None
 
 
-def save_transcription(text: str, model: str) -> Path | None:
+def count_words(text: str) -> int:
+    """Count words in text by splitting on whitespace."""
+    return len([w for w in text.split() if w])
+
+
+def save_transcription(text: str, model: str, duration: float = 0.0) -> Path | None:
     """Save transcription to Obsidian vault if configured. Returns file path or None."""
     # Skip blank/empty transcriptions
     if not text or not text.strip():
@@ -118,10 +123,17 @@ def save_transcription(text: str, model: str) -> Path | None:
     filename = f"{timestamp.strftime('%Y-%m-%d %H-%M-%S')}.md"
     filepath = TRANSCRIPTIONS_DIR / filename
 
+    # Calculate word count and WPM
+    word_count = count_words(text)
+    wpm = (word_count / (duration / 60.0)) if duration > 0 else 0
+
     # Create markdown content with frontmatter
     content = f"""---
 created: {timestamp.isoformat()}
 model: {model}
+duration: {duration:.2f}
+word_count: {word_count}
+wpm: {wpm:.1f}
 ---
 
 {text}
@@ -527,7 +539,9 @@ def stop_and_transcribe():
     model = WhisperModel(MODEL_SIZE, device="auto", compute_type="int8")
     segments, info = model.transcribe(str(AUDIO_FILE), beam_size=5)
 
-    print(f"Transcription info: duration={info.duration:.2f}s, language={info.language}")
+    # Get audio duration from transcription info
+    audio_duration = info.duration
+    print(f"Transcription info: duration={audio_duration:.2f}s, language={info.language}")
 
     # Collect segments for debugging
     segment_texts = list(segment.text for segment in segments)
@@ -543,8 +557,13 @@ def stop_and_transcribe():
             text = refine_transcription(text)
             print(f"After refinement: {text}")
 
+        # Calculate word count and WPM
+        word_count = len([w for w in text.split() if w])
+        wpm = (word_count / (audio_duration / 60.0)) if audio_duration > 0 else 0
+        print(f"Word count: {word_count}, WPM: {wpm:.1f}")
+
         # Save to Obsidian vault (skips if blank)
-        saved_path = save_transcription(text, MODEL_SIZE)
+        saved_path = save_transcription(text, MODEL_SIZE, duration=audio_duration)
 
         # Copy to clipboard
         pyperclip.copy(text)
@@ -555,6 +574,9 @@ def stop_and_transcribe():
         print("TRANSCRIPTION_END")
         print(f"TRANSCRIPTION_MODEL:{MODEL_SIZE}")
         print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
+        print(f"TRANSCRIPTION_DURATION:{audio_duration:.2f}")
+        print(f"TRANSCRIPTION_WORD_COUNT:{word_count}")
+        print(f"TRANSCRIPTION_WPM:{wpm:.1f}")
 
         if saved_path:
             notify("✅ Dictation", f"Copied & saved: {text[:40]}{'...' if len(text) > 40 else ''}")

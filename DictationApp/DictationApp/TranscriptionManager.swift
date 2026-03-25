@@ -354,13 +354,16 @@ class TranscriptionManager: ObservableObject {
                     return
                 }
 
-                let (text, model, timestamp) = parsed
+                let (text, model, timestamp, duration, wordCount, wpm) = parsed
 
                 // Create transcription and save to local history
                 let transcription = Transcription(
                     text: text,
                     timestamp: timestamp,
-                    model: model
+                    model: model,
+                    duration: duration,
+                    wordCount: wordCount,
+                    wpm: wpm
                 )
                 historyManager.addTranscription(transcription)
 
@@ -396,7 +399,7 @@ class TranscriptionManager: ObservableObject {
     }
 
     /// Parse transcription text from Python script output
-    private func parseTranscriptionFromOutput(_ output: String) -> (text: String, model: WhisperModel, timestamp: Date)? {
+    private func parseTranscriptionFromOutput(_ output: String) -> (text: String, model: WhisperModel, timestamp: Date, duration: Double, wordCount: Int, wpm: Double)? {
         // Look for TRANSCRIPTION_START and TRANSCRIPTION_END markers
         guard let startIndex = output.range(of: "TRANSCRIPTION_START")?.upperBound,
               let endIndex = output.range(of: "TRANSCRIPTION_END")?.lowerBound else {
@@ -429,7 +432,33 @@ class TranscriptionManager: ObservableObject {
             timestamp = Date()
         }
 
-        return (text, model, timestamp)
+        // Parse duration
+        var duration: Double = 0
+        if let durRange = output.range(of: "TRANSCRIPTION_DURATION:"),
+           let durEnd = output[durRange.upperBound...].firstIndex(of: "\n") {
+            let durString = String(output[durRange.upperBound..<durEnd]).trimmingCharacters(in: .whitespaces)
+            duration = Double(durString) ?? 0
+        }
+
+        // Parse word count
+        var wordCount: Int = 0
+        if let wcRange = output.range(of: "TRANSCRIPTION_WORD_COUNT:"),
+           let wcEnd = output[wcRange.upperBound...].firstIndex(of: "\n") {
+            let wcString = String(output[wcRange.upperBound..<wcEnd]).trimmingCharacters(in: .whitespaces)
+            wordCount = Int(wcString) ?? 0
+        }
+
+        // Parse WPM
+        var wpm: Double = 0
+        if let wpmRange = output.range(of: "TRANSCRIPTION_WPM:"),
+           let wpmEnd = output[wpmRange.upperBound...].firstIndex(of: "\n") {
+            let wpmString = String(output[wpmRange.upperBound..<wpmEnd]).trimmingCharacters(in: .whitespaces)
+            wpm = Double(wpmString) ?? 0
+        }
+
+        print("Parsed metadata: duration=\(duration)s, wordCount=\(wordCount), wpm=\(wpm)")
+
+        return (text, model, timestamp, duration, wordCount, wpm)
     }
 
     // MARK: - Python Script Execution

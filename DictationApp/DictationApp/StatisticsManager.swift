@@ -66,6 +66,10 @@ struct StatisticsData: Codable {
 
     // For tracking daily word counts
     var dailyWordCounts: [String: Int] = [:] // "YYYY-MM-DD" -> word count
+
+    // WPM tracking
+    var totalWpmSum: Double = 0  // Sum of all WPM values for averaging
+    var wpmSessionCount: Int = 0  // Number of sessions with valid WPM data
 }
 
 // MARK: - Statistics Manager
@@ -118,13 +122,24 @@ class StatisticsManager: ObservableObject {
 
     /// Record a new transcription
     func recordTranscription(_ transcription: Transcription) {
-        let wordCount = countWords(in: transcription.text)
+        let wordCount = transcription.wordCount > 0 ? transcription.wordCount : countWords(in: transcription.text)
         let today = Calendar.current.startOfDay(for: Date())
         let todayKey = dateKey(today)
 
         // Update totals
         data.totalWords += wordCount
         data.totalSessions += 1
+
+        // Track recording duration if available
+        if transcription.duration > 0 {
+            data.totalRecordingSeconds += transcription.duration
+        }
+
+        // Track WPM if available
+        if transcription.wpm > 0 {
+            data.totalWpmSum += transcription.wpm
+            data.wpmSessionCount += 1
+        }
 
         // Update daily counts
         data.dailyWordCounts[todayKey, default: 0] += wordCount
@@ -148,6 +163,9 @@ class StatisticsManager: ObservableObject {
             data.mostProductiveDay = today
             data.mostProductiveDayWords = data.dailyWordCounts[todayKey, default: 0]
         }
+
+        // Recalculate average WPM
+        recalculateWpm()
 
         // Check achievements
         checkAchievements()
@@ -177,6 +195,9 @@ class StatisticsManager: ObservableObject {
         data.totalSessions = transcriptions.count
         data.dailyWordCounts = [:]
         data.modelUsage = [:]
+        data.totalRecordingSeconds = 0
+        data.totalWpmSum = 0
+        data.wpmSessionCount = 0
 
         let calendar = Calendar.current
         let now = Date()
@@ -188,7 +209,7 @@ class StatisticsManager: ObservableObject {
         var mostProductiveCount = 0
 
         for transcription in transcriptions {
-            let wordCount = countWords(in: transcription.text)
+            let wordCount = transcription.wordCount > 0 ? transcription.wordCount : countWords(in: transcription.text)
             data.totalWords += wordCount
 
             // Track by day
@@ -198,6 +219,17 @@ class StatisticsManager: ObservableObject {
             // Track model usage
             let modelName = transcription.model.rawValue
             data.modelUsage[modelName, default: 0] += 1
+
+            // Track recording duration if available
+            if transcription.duration > 0 {
+                data.totalRecordingSeconds += transcription.duration
+            }
+
+            // Track WPM if available
+            if transcription.wpm > 0 {
+                data.totalWpmSum += transcription.wpm
+                data.wpmSessionCount += 1
+            }
 
             // Update last active date
             if data.lastActiveDate == nil || transcription.timestamp > data.lastActiveDate! {
@@ -237,6 +269,9 @@ class StatisticsManager: ObservableObject {
 
         // Calculate streak
         calculateStreak()
+
+        // Calculate average WPM
+        recalculateWpm()
     }
 
     private func calculateStreak() {
@@ -287,13 +322,18 @@ class StatisticsManager: ObservableObject {
 
     private func recalculateStats() {
         recalculateWeeklyMonthly()
+        recalculateWpm()
+    }
 
-        // Calculate average WPM (assuming average speaking rate of 150 wpm for recording time estimation)
-        if data.totalWords > 0 && data.totalRecordingSeconds > 0 {
+    private func recalculateWpm() {
+        // Calculate average WPM from actual transcription data if available
+        if data.wpmSessionCount > 0 {
+            averageWpm = data.totalWpmSum / Double(data.wpmSessionCount)
+        } else if data.totalWords > 0 && data.totalRecordingSeconds > 0 {
+            // Fallback: calculate from total words and total recording time
             averageWpm = Double(data.totalWords) / (data.totalRecordingSeconds / 60.0)
         } else {
-            // Use a reasonable estimate based on total sessions
-            averageWpm = 120 // Default estimate
+            averageWpm = 0 // No data available
         }
     }
 
@@ -402,5 +442,25 @@ extension StatisticsManager {
         guard !data.modelUsage.isEmpty else { return "None" }
         let sorted = data.modelUsage.sorted { $0.value > $1.value }
         return sorted.first?.key ?? "None"
+    }
+
+    /// Formatted average WPM value
+    var formattedWpm: String {
+        if averageWpm > 0 {
+            return String(format: "%.0f", averageWpm)
+        } else {
+            return "--"
+        }
+    }
+
+    /// Label for WPM display (indicates if real or no data)
+    var wpmLabel: String {
+        if data.wpmSessionCount > 0 {
+            return "Avg WPM"
+        } else if data.totalRecordingSeconds > 0 {
+            return "Avg WPM (estimated)"
+        } else {
+            return "Avg WPM (no data)"
+        }
     }
 }

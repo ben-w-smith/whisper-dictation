@@ -19,6 +19,9 @@ StatisticsManager tracks transcription usage including word counts, session coun
 | `wordsThisMonth` | Words transcribed this month |
 | `modelUsage` | Count per model used |
 | `mostProductiveDay` | Date with highest word count |
+| `averageWpm` | Average words per minute across all sessions |
+| `totalRecordingSeconds` | Total audio recording time |
+| `wpmSessionCount` | Number of sessions with valid WPM data |
 
 ## Data Model
 
@@ -38,8 +41,45 @@ struct StatisticsData: Codable {
     var unlockedAchievements: Set<String> = []
     var lastActiveDate: Date?
     var dailyWordCounts: [String: Int] = [:]  // "YYYY-MM-DD" -> count
+
+    // WPM tracking
+    var totalWpmSum: Double = 0  // Sum of all WPM values for averaging
+    var wpmSessionCount: Int = 0  // Number of sessions with valid WPM data
 }
 ```
+
+## WPM Tracking
+
+Words Per Minute (WPM) is calculated per transcription and stored for accurate averages:
+
+### Per-Transcription WPM
+
+Each transcription captures:
+- `duration` - Audio length in seconds (from faster-whisper)
+- `wordCount` - Number of words in the transcription
+- `wpm` - Calculated as `(wordCount / duration) * 60`
+
+### Average WPM Calculation
+
+```swift
+private func recalculateWpm() {
+    // Prefer actual per-transcription WPM data
+    if data.wpmSessionCount > 0 {
+        averageWpm = data.totalWpmSum / Double(data.wpmSessionCount)
+    } else if data.totalWords > 0 && data.totalRecordingSeconds > 0 {
+        // Fallback: calculate from totals
+        averageWpm = Double(data.totalWords) / (data.totalRecordingSeconds / 60.0)
+    } else {
+        averageWpm = 0
+    }
+}
+```
+
+### Display Labels
+
+- `"Avg WPM"` - Real data from transcriptions
+- `"Avg WPM (estimated)"` - Calculated from total words/time
+- `"Avg WPM (no data)"` - No recording data available
 
 ## Achievements
 

@@ -137,6 +137,45 @@ The JSON structure:
 }
 ```
 
+## Development Notes
+
+### SwiftUI Text Field Bindings
+
+The `RefinementSettingsView` uses `@State` properties for text fields rather than direct bindings to `@Published` properties on the `RefinementManager`. This pattern is necessary because:
+
+1. **@ObservedObject with inline initialization** (`@ObservedObject var manager = Manager.shared`) can cause binding issues with text fields - the observation lifecycle isn't properly managed by SwiftUI.
+
+2. **@StateObject with singletons** is semantically incorrect - `@StateObject` is meant to own objects, not reference existing singletons.
+
+3. **@MainActor on ObservableObject** combined with direct bindings can interfere with SwiftUI's binding mechanism.
+
+**Recommended pattern:**
+
+```swift
+struct RefinementSettingsView: View {
+    // Local @State properties for text fields
+    @State private var baseURL = RefinementManager.shared.baseURL
+    @State private var model = RefinementManager.shared.model
+
+    var body: some View {
+        TextField("URL", text: $baseURL)
+            .onChange(of: baseURL) { _, newValue in
+                RefinementManager.shared.baseURL = newValue
+            }
+    }
+}
+```
+
+This ensures text input works reliably while keeping the singleton in sync.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `RefinementManager.swift` | Singleton managing settings, API key in Keychain |
+| `RefinementSettingsView.swift` | Settings UI with text fields, API key management |
+| `dictate-toggle.py` | Receives config via environment variables |
+
 ## Cross-References
 
 - [Transcription](transcription.md) - What gets refined

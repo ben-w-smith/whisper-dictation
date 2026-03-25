@@ -1,10 +1,15 @@
 import SwiftUI
 
 struct RefinementSettingsView: View {
-    @ObservedObject private var refinementManager = RefinementManager.shared
+    @State private var isRefinementEnabled = RefinementManager.shared.isRefinementEnabled
+    @State private var apiPattern = RefinementManager.shared.apiPattern
+    @State private var baseURL = RefinementManager.shared.baseURL
+    @State private var model = RefinementManager.shared.model
+    @State private var customPrompt = RefinementManager.shared.customPrompt
     @State private var showAPIKeyField = false
     @State private var tempAPIKey = ""
     @State private var showingClearConfirmation = false
+    @State private var apiKeyStatus = RefinementManager.shared.apiKeyStatus
     @State private var showProviderExamples = false
 
     // Provider examples loaded from providers.json
@@ -23,14 +28,17 @@ struct RefinementSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Toggle("", isOn: $refinementManager.isRefinementEnabled)
+                    Toggle("", isOn: $isRefinementEnabled)
                         .toggleStyle(.switch)
+                        .onChange(of: isRefinementEnabled) { _, newValue in
+                            RefinementManager.shared.isRefinementEnabled = newValue
+                        }
                 }
             }
 
-            if refinementManager.isRefinementEnabled {
+            if isRefinementEnabled {
                 Section("API Pattern") {
-                    Picker("Pattern", selection: $refinementManager.apiPattern) {
+                    Picker("Pattern", selection: $apiPattern) {
                         ForEach(RefinementManager.APIPattern.allCases) { pattern in
                             VStack(alignment: .leading) {
                                 Text(pattern.displayName)
@@ -42,6 +50,14 @@ struct RefinementSettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .onChange(of: apiPattern) { _, newValue in
+                        RefinementManager.shared.apiPattern = newValue
+                        // Update base URL to pattern default if it was empty or matched previous pattern
+                        if baseURL.isEmpty {
+                            baseURL = newValue.defaultBaseURL
+                            RefinementManager.shared.baseURL = newValue.defaultBaseURL
+                        }
+                    }
                 }
 
                 Section("API Configuration") {
@@ -50,9 +66,12 @@ struct RefinementSettingsView: View {
                         Text("Base URL:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField(refinementManager.apiPattern.defaultBaseURL, text: $refinementManager.baseURL)
+                        TextField(apiPattern.defaultBaseURL, text: $baseURL)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
+                            .onChange(of: baseURL) { _, newValue in
+                                RefinementManager.shared.baseURL = newValue
+                            }
                     }
 
                     // Model
@@ -61,11 +80,14 @@ struct RefinementSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         TextField(
-                            "e.g., \(refinementManager.apiPattern.exampleModels.first ?? "model-name")",
-                            text: $refinementManager.model
+                            "e.g., \(apiPattern.exampleModels.first ?? "model-name")",
+                            text: $model
                         )
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
+                        .onChange(of: model) { _, newValue in
+                            RefinementManager.shared.model = newValue
+                        }
                     }
                 }
 
@@ -76,9 +98,11 @@ struct RefinementSettingsView: View {
                             ForEach(providersForCurrentPattern) { provider in
                                 ProviderRowView(provider: provider) { selectedProvider in
                                     // Auto-fill base URL when clicked
-                                    refinementManager.baseURL = selectedProvider.baseURL
+                                    baseURL = selectedProvider.baseURL
+                                    RefinementManager.shared.baseURL = selectedProvider.baseURL
                                     if let firstModel = selectedProvider.models.first {
-                                        refinementManager.model = firstModel
+                                        model = firstModel
+                                        RefinementManager.shared.model = firstModel
                                     }
                                 }
                             }
@@ -90,16 +114,16 @@ struct RefinementSettingsView: View {
                 Section("API Key") {
                     // API Key status and management
                     HStack {
-                        Image(systemName: refinementManager.apiKeyStatus.iconName)
+                        Image(systemName: apiKeyStatus.iconName)
                             .foregroundStyle(apiKeyStatusColor)
 
-                        Text(refinementManager.apiKeyStatus.displayText)
+                        Text(apiKeyStatus.displayText)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
-                        if refinementManager.apiKeyStatus == .set {
+                        if apiKeyStatus == .set {
                             Button("Change") {
                                 tempAPIKey = ""
                                 showAPIKeyField = true
@@ -135,12 +159,13 @@ struct RefinementSettingsView: View {
                                 Spacer()
 
                                 Button("Save") {
-                                    _ = refinementManager.saveAPIKey(tempAPIKey)
+                                    _ = RefinementManager.shared.saveAPIKey(tempAPIKey)
+                                    apiKeyStatus = RefinementManager.shared.apiKeyStatus
                                     showAPIKeyField = false
                                     tempAPIKey = ""
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .disabled(tempAPIKey.isEmpty && refinementManager.apiKeyStatus != .set)
+                                .disabled(tempAPIKey.isEmpty && apiKeyStatus != .set)
                             }
                         }
                         .padding(.top, 4)
@@ -153,13 +178,17 @@ struct RefinementSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        TextEditor(text: $refinementManager.customPrompt)
+                        TextEditor(text: $customPrompt)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 100, maxHeight: 150)
                             .border(Color.secondary.opacity(0.2))
+                            .onChange(of: customPrompt) { _, newValue in
+                                RefinementManager.shared.customPrompt = newValue
+                            }
 
                         Button("Reset to Default") {
-                            refinementManager.customPrompt = RefinementManager.defaultPrompt
+                            customPrompt = RefinementManager.defaultPrompt
+                            RefinementManager.shared.customPrompt = RefinementManager.defaultPrompt
                         }
                         .buttonStyle(.bordered)
                         .font(.caption)
@@ -189,7 +218,8 @@ struct RefinementSettingsView: View {
         .alert("Clear API Key?", isPresented: $showingClearConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
-                refinementManager.deleteAPIKey()
+                RefinementManager.shared.deleteAPIKey()
+                apiKeyStatus = RefinementManager.shared.apiKeyStatus
             }
         } message: {
             Text("This will remove the stored API key from your keychain.")
@@ -197,7 +227,7 @@ struct RefinementSettingsView: View {
     }
 
     private var apiKeyStatusColor: Color {
-        switch refinementManager.apiKeyStatus {
+        switch apiKeyStatus {
         case .notSet:
             return .secondary
         case .set:
@@ -208,7 +238,7 @@ struct RefinementSettingsView: View {
     }
 
     private var providersForCurrentPattern: [ProviderInfo] {
-        providers.filter { $0.pattern == refinementManager.apiPattern.rawValue }
+        providers.filter { $0.pattern == apiPattern.rawValue }
     }
 }
 

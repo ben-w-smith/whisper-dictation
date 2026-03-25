@@ -71,6 +71,21 @@ def transcribe_audio(audio_path: str) -> str:
     return text.strip()
 ```
 
+## WPM Metadata
+
+Each transcription captures timing metadata for accurate WPM (Words Per Minute) tracking:
+
+```python
+# From faster-whisper
+audio_duration = info.duration  # Actual audio length in seconds
+
+# Calculate metrics
+word_count = len([w for w in text.split() if w])
+wpm = (word_count / (audio_duration / 60.0)) if audio_duration > 0 else 0
+```
+
+This data is saved to Obsidian frontmatter and passed to Swift for statistics tracking.
+
 ## Model Storage
 
 Models are downloaded and cached locally by faster-whisper:
