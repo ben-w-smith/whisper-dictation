@@ -12,6 +12,11 @@ struct SettingsView: View {
                         Label("General", systemImage: "gear")
                     }
 
+                TranscriptionSettingsView()
+                    .tabItem {
+                        Label("Transcription", systemImage: "waveform")
+                    }
+
                 HotkeySettingsView()
                     .environmentObject(manager)
                     .tabItem {

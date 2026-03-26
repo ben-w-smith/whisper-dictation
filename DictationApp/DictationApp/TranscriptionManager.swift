@@ -475,6 +475,12 @@ class TranscriptionManager: ObservableObject {
             environment[key] = value
         }
 
+        // Pass Gemini transcription configuration as environment variables
+        let geminiConfig = GeminiTranscriptionManager.shared.exportConfig()
+        for (key, value) in geminiConfig {
+            environment[key] = value
+        }
+
         // Pass Obsidian vault path if configured
         if obsidianManager.isReady, let vaultPath = obsidianManager.vaultPath {
             environment["DICTATE_OBSIDIAN_VAULT"] = vaultPath.path

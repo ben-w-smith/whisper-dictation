@@ -75,6 +75,11 @@ REFINEMENT_PROMPT = os.environ.get("DICTATE_REFINEMENT_PROMPT", """Improve this 
 
 Transcription: """)
 
+# Transcription provider configuration (read from environment variables set by Swift app)
+TRANSCRIPTION_PROVIDER = os.environ.get("DICTATE_TRANSCRIPTION_PROVIDER", "local")
+TRANSCRIPTION_API_KEY = os.environ.get("DICTATE_TRANSCRIPTION_API_KEY", "")
+TRANSCRIPTION_AUTO_FALLBACK = os.environ.get("DICTATE_TRANSCRIPTION_AUTO_FALLBACK", "true").lower() == "true"
+
 
 def get_input_device_index() -> int | None:
     """Find the best input device, preferring USB microphone"""
@@ -375,6 +380,41 @@ def refine_transcription(text: str) -> str:
         return refine_with_openai_compatible(text)
 
 
+def transcribe_with_remote() -> tuple[str, float]:
+    """Transcribe using remote Gemini API. Returns (text, duration)."""
+    import time
+
+    if not TRANSCRIPTION_API_KEY:
+        print("ERROR: Gemini API key not configured for transcription", file=sys.stderr)
+        return "", 0.0
+
+    try:
+        # Import remote transcription module
+        from remote_gemini import transcribe_with_gemini
+
+        print(f"Starting remote transcription with {TRANSCRIPTION_PROVIDER}")
+        start_time = time.time()
+
+        text, transcribe_duration = transcribe_with_gemini(
+            AUDIO_FILE,
+            TRANSCRIPTION_PROVIDER,
+            TRANSCRIPTION_API_KEY
+        )
+
+        total_duration = time.time() - start_time
+        print(f"Remote transcription completed in {total_duration:.2f}s")
+        print(f"Transcription: {text[:100]}{'...' if len(text) > 100 else ''}")
+
+        return text, transcribe_duration
+
+    except ImportError as e:
+        print(f"ERROR: Could not import remote_gemini module: {e}", file=sys.stderr)
+        return "", 0.0
+    except Exception as e:
+        print(f"ERROR: Remote transcription failed: {e}", file=sys.stderr)
+        return "", 0.0
+
+
 def ensure_state_dir():
     STATE_DIR.mkdir(exist_ok=True)
 
@@ -541,20 +581,48 @@ def stop_and_transcribe():
 
     notify("📝 Dictation", "Transcribing...")
 
-    # Load model and transcribe
-    model = WhisperModel(MODEL_SIZE, device="auto", compute_type="int8")
-    segments, info = model.transcribe(str(AUDIO_FILE), beam_size=5)
+    # Determine transcription method based on provider
+    use_remote = TRANSCRIPTION_PROVIDER in ["gemini-lite", "gemini-flash"]
+    text = ""
+    model_used = MODEL_SIZE
+    audio_duration = 0.0
 
-    # Get audio duration from transcription info
-    audio_duration = info.duration
-    print(f"Transcription info: duration={audio_duration:.2f}s, language={info.language}")
+    if use_remote:
+        print(f"Using remote transcription: {TRANSCRIPTION_PROVIDER}")
+        text, audio_duration = transcribe_with_remote()
+        if text:
+            model_used = TRANSCRIPTION_PROVIDER
+        elif TRANSCRIPTION_AUTO_FALLBACK:
+            print("Remote transcription failed, falling back to local")
+            notify("🔄 Dictation", "Remote failed, using local...")
+            use_remote = False
+        else:
+            # No fallback, return empty
+            notify("❌ Dictation", "Remote transcription failed")
+            print("TRANSCRIPTION_START")
+            print("")
+            print("TRANSCRIPTION_END")
+            print(f"TRANSCRIPTION_MODEL:{TRANSCRIPTION_PROVIDER}")
+            print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
+            AUDIO_FILE.unlink(missing_ok=True)
+            return
 
-    # Collect segments for debugging
-    segment_texts = list(segment.text for segment in segments)
-    print(f"Segments ({len(segment_texts)}): {segment_texts}")
-    text = "".join(segment_texts).strip()
-    print(f"Raw transcription: {text}")
-    print(f"Raw transcription length: {len(text)} chars")
+    if not use_remote or not text:
+        # Use local Whisper transcription
+        print("Using local transcription")
+        model = WhisperModel(MODEL_SIZE, device="auto", compute_type="int8")
+        segments, info = model.transcribe(str(AUDIO_FILE), beam_size=5)
+
+        # Get audio duration from transcription info
+        audio_duration = info.duration
+        print(f"Transcription info: duration={audio_duration:.2f}s, language={info.language}")
+
+        # Collect segments for debugging
+        segment_texts = list(segment.text for segment in segments)
+        print(f"Segments ({len(segment_texts)}): {segment_texts}")
+        text = "".join(segment_texts).strip()
+        print(f"Raw transcription: {text}")
+        print(f"Raw transcription length: {len(text)} chars")
 
     if text:
         # Post-process with AI refinement if enabled
@@ -569,7 +637,7 @@ def stop_and_transcribe():
         print(f"Word count: {word_count}, WPM: {wpm:.1f}")
 
         # Save to Obsidian vault (skips if blank)
-        saved_path = save_transcription(text, MODEL_SIZE, duration=audio_duration)
+        saved_path = save_transcription(text, model_used, duration=audio_duration)
 
         # Copy to clipboard
         pyperclip.copy(text)
@@ -578,7 +646,7 @@ def stop_and_transcribe():
         print("TRANSCRIPTION_START")
         print(text)
         print("TRANSCRIPTION_END")
-        print(f"TRANSCRIPTION_MODEL:{MODEL_SIZE}")
+        print(f"TRANSCRIPTION_MODEL:{model_used}")
         print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
         print(f"TRANSCRIPTION_DURATION:{audio_duration:.2f}")
         print(f"TRANSCRIPTION_WORD_COUNT:{word_count}")
@@ -594,7 +662,7 @@ def stop_and_transcribe():
         print("TRANSCRIPTION_START")
         print("")
         print("TRANSCRIPTION_END")
-        print(f"TRANSCRIPTION_MODEL:{MODEL_SIZE}")
+        print(f"TRANSCRIPTION_MODEL:{model_used}")
         print(f"TRANSCRIPTION_TIMESTAMP:{datetime.now().isoformat()}")
 
     # Cleanup
