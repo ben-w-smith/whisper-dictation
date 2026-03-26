@@ -109,8 +109,36 @@ The app includes a setup wizard that launches automatically on first run:
 - Guides through permissions (Microphone, Accessibility optional)
 - Configures Obsidian vault path (optional)
 - Selects default Whisper model
+- Detects already-downloaded models in HuggingFace cache
 
 Skip the wizard or run it later from Settings.
+
+### Opening System Settings Panes
+
+Use URL schemes to open specific privacy panes:
+
+```swift
+// Microphone
+URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+
+// Accessibility
+URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+
+// Full Disk Access
+URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+```
+
+### HuggingFace Cache Detection
+
+Models are cached at `~/.cache/huggingface/hub/models--{org}--{model}/`. Check for:
+1. `refs/main` file exists (contains commit SHA)
+2. `snapshots/{commit-sha}/model.bin` exists
+
+```swift
+let cacheDir = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent(".cache/huggingface/hub")
+    .appendingPathComponent("models--Systran--faster-whisper-base.en")
+```
 
 ### Path Management
 
@@ -121,4 +149,4 @@ The `PathManager` handles script location across different contexts:
 
 ---
 
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-25*
