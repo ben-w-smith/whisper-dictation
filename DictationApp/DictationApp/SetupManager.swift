@@ -36,6 +36,8 @@ class SetupManager: ObservableObject {
     @Published var isDownloadingModel: Bool = false
     @Published var downloadProgress: String = ""
     @Published var downloadedModels: Set<String> = []
+    @Published var cachedModels: Set<String> = []
+    @Published var downloadingModel: WhisperModel?
 
     // MARK: - Types
 
@@ -448,13 +450,19 @@ class SetupManager: ObservableObject {
 
     // MARK: - Model Download
 
-    func downloadSelectedModel() {
+    // MARK: - Model Download
+
+    /// Download a specific model
+    func downloadModel(_ model: WhisperModel) {
+        // Don't download if already available
+        guard !isModelAvailable(model) else { return }
+
         isDownloadingModel = true
+        downloadingModel = model
         downloadProgress = "Starting download..."
 
         Task {
             do {
-                let model = selectedModel
                 let modelName = model.huggingFaceModelName
 
                 await MainActor.run {
@@ -469,6 +477,7 @@ class SetupManager: ObservableObject {
                     await MainActor.run {
                         downloadProgress = "Error: warmup-model.py not found"
                         isDownloadingModel = false
+                        downloadingModel = nil
                     }
                     return
                 }
@@ -487,9 +496,11 @@ class SetupManager: ObservableObject {
 
                 if process.terminationStatus == 0 {
                     await MainActor.run {
+                        cachedModels.insert(modelName)
                         downloadedModels.insert(modelName)
                         downloadProgress = "\(model.displayName) downloaded successfully!"
                         isDownloadingModel = false
+                        downloadingModel = nil
                     }
                 } else {
                     let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -497,19 +508,66 @@ class SetupManager: ObservableObject {
                     await MainActor.run {
                         downloadProgress = "Download failed: \(error)"
                         isDownloadingModel = false
+                        downloadingModel = nil
                     }
                 }
             } catch {
                 await MainActor.run {
                     downloadProgress = "Error: \(error.localizedDescription)"
                     isDownloadingModel = false
+                    downloadingModel = nil
                 }
             }
         }
     }
 
+    /// Download the currently selected model (legacy support)
+    func downloadSelectedModel() {
+        downloadModel(selectedModel)
+    }
+
+    /// Check if a model is available (cached or downloaded this session)
+    func isModelAvailable(_ model: WhisperModel) -> Bool {
+        return cachedModels.contains(model.huggingFaceModelName) ||
+               downloadedModels.contains(model.huggingFaceModelName)
+    }
+
+    /// Legacy alias for isModelAvailable
     func isModelDownloaded(_ model: WhisperModel) -> Bool {
-        return downloadedModels.contains(model.huggingFaceModelName)
+        return isModelAvailable(model)
+    }
+
+    /// Check if a model exists in the HuggingFace cache
+    private func isModelInCache(_ model: WhisperModel) -> Bool {
+        let sanitizedName = model.huggingFaceModelName.replacingOccurrences(of: "/", with: "--")
+        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cache/huggingface/hub")
+            .appendingPathComponent("models--\(sanitizedName)")
+
+        // Check refs/main exists and contains a commit SHA
+        let refsMain = cacheDir.appendingPathComponent("refs/main")
+        guard FileManager.default.fileExists(atPath: refsMain.path),
+              let commitSHA = try? String(contentsOf: refsMain, encoding: .utf8),
+              !commitSHA.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        // Check model.bin exists in snapshots
+        let commit = commitSHA.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelBin = cacheDir
+            .appendingPathComponent("snapshots")
+            .appendingPathComponent(commit)
+            .appendingPathComponent("model.bin")
+        return FileManager.default.fileExists(atPath: modelBin.path)
+    }
+
+    /// Scan all models and populate cachedModels set
+    func checkCachedModels() {
+        for model in WhisperModel.allCases {
+            if isModelInCache(model) {
+                cachedModels.insert(model.huggingFaceModelName)
+            }
+        }
     }
 }
 

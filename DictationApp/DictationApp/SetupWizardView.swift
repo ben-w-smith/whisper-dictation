@@ -289,37 +289,52 @@ struct SetupWizardView: View {
                 .font(.title)
                 .fontWeight(.semibold)
 
-            Text("DictationApp needs certain permissions to function properly. macOS will prompt you for these when you first use the features.")
+            Text("DictationApp needs certain permissions to function properly. Click the buttons below to open System Settings and grant access.")
                 .font(.body)
 
-            VStack(spacing: 16) {
-                permissionRow(
+            // System Permissions Group
+            VStack(alignment: .leading, spacing: 12) {
+                Text("System Permissions")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+
+                permissionRowWithButton(
                     icon: "mic.fill",
                     title: "Microphone Access",
                     description: "Required to record your voice. macOS will prompt you on first recording.",
-                    isRequired: true
+                    isRequired: true,
+                    action: { openPrivacySettings("Privacy_Microphone") }
                 )
 
-                Divider()
-
-                permissionRow(
-                    icon: "hand.tap.fill",
-                    title: "Accessibility (Optional)",
-                    description: "Required for auto-paste feature. Allows the app to paste transcriptions directly into text fields. You can set this up later in Settings.",
-                    isRequired: false
-                )
-
-                Divider()
-
-                permissionRow(
+                permissionRowWithButton(
                     icon: "folder.fill",
                     title: "File System Access",
                     description: "Needed to save transcriptions to your Obsidian vault and manage local history.",
-                    isRequired: true
+                    isRequired: true,
+                    action: { openPrivacySettings("Privacy_AllFiles") }
                 )
             }
 
-            Text("Note: You can always change these permissions later in System Preferences > Privacy & Security.")
+            Divider()
+
+            // Optional Permissions Group
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Optional Features")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+
+                permissionRowWithButton(
+                    icon: "hand.tap.fill",
+                    title: "Accessibility",
+                    description: "Required for auto-paste feature. Allows the app to paste transcriptions directly into text fields. You can set this up later in Settings.",
+                    isRequired: false,
+                    action: { openPrivacySettings("Privacy_Accessibility") }
+                )
+            }
+
+            Text("Note: You can always change these permissions later in System Settings > Privacy & Security.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
@@ -328,7 +343,21 @@ struct SetupWizardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func permissionRow(icon: String, title: String, description: String, isRequired: Bool) -> some View {
+    /// Open System Settings to a specific privacy pane
+    private func openPrivacySettings(_ anchor: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Permission row with icon, description, and action button
+    private func permissionRowWithButton(
+        icon: String,
+        title: String,
+        description: String,
+        isRequired: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
@@ -364,7 +393,16 @@ struct SetupWizardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Spacer()
+
+            Button("Grant Permission", action: action)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
     }
 
     // MARK: - Vault Configuration Step
@@ -442,29 +480,12 @@ struct SetupWizardView: View {
 
     private var modelSelectionStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Download a Whisper Model")
+            Text("Select a Whisper Model")
                 .font(.title)
                 .fontWeight(.semibold)
 
-            Text("Whisper models power the transcription. Larger models are more accurate but slower and take longer to download. We recommend starting with the base model.")
+            Text("Choose a Whisper model for transcription. Larger models are more accurate but slower. Downloaded models are cached in ~/.cache/huggingface/.")
                 .font(.body)
-
-            // Download progress if downloading
-            if setupManager.isDownloadingModel {
-                VStack(spacing: 12) {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text(setupManager.downloadProgress)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(12)
-                }
-            }
 
             VStack(spacing: 12) {
                 ForEach(WhisperModel.allCases) { model in
@@ -472,31 +493,21 @@ struct SetupWizardView: View {
                 }
             }
 
-            // Download button
-            if !setupManager.isDownloadingModel {
-                Button(action: {
-                    setupManager.downloadSelectedModel()
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.down.circle")
-                        Text("Download \(setupManager.selectedModel.displayName)")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            }
-
-            Text("The model will be downloaded to ~/.cache/huggingface/. You can change models later in Settings.")
+            Text("You can change models later in Settings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            setupManager.checkCachedModels()
+        }
     }
 
     private func modelCard(model: WhisperModel) -> some View {
-        Button {
+        let isDownloaded = setupManager.isModelDownloaded(model)
+
+        return Button {
             setupManager.selectedModel = model
         } label: {
             HStack(spacing: 12) {
@@ -514,9 +525,20 @@ struct SetupWizardView: View {
 
                         Spacer()
 
-                        Text(setupManager.modelSize(model))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // Show size or downloaded status
+                        if isDownloaded {
+                            Text("Downloaded")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.2))
+                                .foregroundStyle(.green)
+                                .cornerRadius(4)
+                        } else {
+                            Text(setupManager.modelSize(model))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Text(setupManager.modelDescription(model))
@@ -524,13 +546,20 @@ struct SetupWizardView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
 
-                    HStack(spacing: 8) {
-                        Image(systemName: "speedometer")
-                            .font(.caption2)
-                        Text(model.speed)
-                            .font(.caption2)
+                    HStack {
+                        HStack(spacing: 8) {
+                            Image(systemName: "speedometer")
+                                .font(.caption2)
+                            Text(model.speed)
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        // Download button
+                        downloadButton(for: model)
                     }
-                    .foregroundStyle(.secondary)
                 }
             }
             .padding(12)
@@ -542,6 +571,43 @@ struct SetupWizardView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    /// Download button for a model card with status states
+    @ViewBuilder
+    private func downloadButton(for model: WhisperModel) -> some View {
+        let isDownloading = setupManager.downloadingModel == model
+        let isDownloaded = setupManager.isModelDownloaded(model)
+        let isOtherDownloading = setupManager.downloadingModel != nil && setupManager.downloadingModel != model
+
+        if isDownloaded {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                Text("Ready")
+            }
+            .font(.caption)
+            .foregroundStyle(.green)
+        } else if isDownloading {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Downloading...")
+            }
+            .font(.caption)
+            .foregroundStyle(.blue)
+        } else {
+            Button {
+                setupManager.downloadModel(model)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle")
+                    Text("Download")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isOtherDownloading)
+        }
     }
 
     // MARK: - Complete Step
