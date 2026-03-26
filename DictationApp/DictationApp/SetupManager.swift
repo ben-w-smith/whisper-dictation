@@ -35,9 +35,9 @@ class SetupManager: ObservableObject {
     // Model download state
     @Published var isDownloadingModel: Bool = false
     @Published var downloadProgress: String = ""
-    @Published var downloadedModels: Set<String> = []
     @Published var cachedModels: Set<String> = []
     @Published var downloadingModel: WhisperModel?
+    private var hasCheckedCache: Bool = false
 
     // MARK: - Types
 
@@ -450,8 +450,6 @@ class SetupManager: ObservableObject {
 
     // MARK: - Model Download
 
-    // MARK: - Model Download
-
     /// Download a specific model
     func downloadModel(_ model: WhisperModel) {
         // Don't download if already available
@@ -497,7 +495,6 @@ class SetupManager: ObservableObject {
                 if process.terminationStatus == 0 {
                     await MainActor.run {
                         cachedModels.insert(modelName)
-                        downloadedModels.insert(modelName)
                         downloadProgress = "\(model.displayName) downloaded successfully!"
                         isDownloadingModel = false
                         downloadingModel = nil
@@ -528,8 +525,7 @@ class SetupManager: ObservableObject {
 
     /// Check if a model is available (cached or downloaded this session)
     func isModelAvailable(_ model: WhisperModel) -> Bool {
-        return cachedModels.contains(model.huggingFaceModelName) ||
-               downloadedModels.contains(model.huggingFaceModelName)
+        return cachedModels.contains(model.huggingFaceModelName)
     }
 
     /// Legacy alias for isModelAvailable
@@ -561,8 +557,10 @@ class SetupManager: ObservableObject {
         return FileManager.default.fileExists(atPath: modelBin.path)
     }
 
-    /// Scan all models and populate cachedModels set
+    /// Scan all models and populate cachedModels set (runs only once)
     func checkCachedModels() {
+        guard !hasCheckedCache else { return }
+        hasCheckedCache = true
         for model in WhisperModel.allCases {
             if isModelInCache(model) {
                 cachedModels.insert(model.huggingFaceModelName)

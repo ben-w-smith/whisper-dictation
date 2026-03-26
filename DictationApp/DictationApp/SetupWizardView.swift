@@ -304,7 +304,7 @@ struct SetupWizardView: View {
                     title: "Microphone Access",
                     description: "Required to record your voice. macOS will prompt you on first recording.",
                     isRequired: true,
-                    action: { openPrivacySettings("Privacy_Microphone") }
+                    action: { openPrivacySettings(.microphone) }
                 )
 
                 permissionRowWithButton(
@@ -312,7 +312,7 @@ struct SetupWizardView: View {
                     title: "File System Access",
                     description: "Needed to save transcriptions to your Obsidian vault and manage local history.",
                     isRequired: true,
-                    action: { openPrivacySettings("Privacy_AllFiles") }
+                    action: { openPrivacySettings(.allFiles) }
                 )
             }
 
@@ -330,7 +330,7 @@ struct SetupWizardView: View {
                     title: "Accessibility",
                     description: "Required for auto-paste feature. Allows the app to paste transcriptions directly into text fields. You can set this up later in Settings.",
                     isRequired: false,
-                    action: { openPrivacySettings("Privacy_Accessibility") }
+                    action: { openPrivacySettings(.accessibility) }
                 )
             }
 
@@ -343,9 +343,18 @@ struct SetupWizardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - Privacy Settings
+
+    /// Privacy panes that can be opened in System Settings
+    private enum PrivacyPane: String {
+        case microphone = "Privacy_Microphone"
+        case accessibility = "Privacy_Accessibility"
+        case allFiles = "Privacy_AllFiles"
+    }
+
     /// Open System Settings to a specific privacy pane
-    private func openPrivacySettings(_ anchor: String) {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
+    private func openPrivacySettings(_ pane: PrivacyPane) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane.rawValue)") {
             NSWorkspace.shared.open(url)
         }
     }
@@ -558,7 +567,7 @@ struct SetupWizardView: View {
                         Spacer()
 
                         // Download button
-                        downloadButton(for: model)
+                        downloadButton(for: model, isDownloaded: isDownloaded)
                     }
                 }
             }
@@ -575,9 +584,8 @@ struct SetupWizardView: View {
 
     /// Download button for a model card with status states
     @ViewBuilder
-    private func downloadButton(for model: WhisperModel) -> some View {
+    private func downloadButton(for model: WhisperModel, isDownloaded: Bool) -> some View {
         let isDownloading = setupManager.downloadingModel == model
-        let isDownloaded = setupManager.isModelDownloaded(model)
         let isOtherDownloading = setupManager.downloadingModel != nil && setupManager.downloadingModel != model
 
         if isDownloaded {
